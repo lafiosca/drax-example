@@ -12,13 +12,7 @@ interface DraxContextValue {
 	decrementFoo: () => void;
 }
 
-const defaultValue: DraxContextValue = {
-	foo: 0,
-	incrementFoo: () => {},
-	decrementFoo: () => {},
-};
-
-const DraxContext = createContext<DraxContextValue>(defaultValue);
+const DraxContext = createContext<DraxContextValue | undefined>(undefined);
 DraxContext.displayName = 'Drax';
 
 interface DraxState {
@@ -71,4 +65,10 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ children })
 	);
 };
 
-export const useDrax = () => useContext(DraxContext);
+export const useDrax = () => {
+	const drax = useContext(DraxContext);
+	if (!drax) {
+		throw Error('No DraxProvider found');
+	}
+	return drax;
+};
