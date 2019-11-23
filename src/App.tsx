@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 
 import { Box } from './Box';
-import { DraxProvider } from './Drax';
+import { DraxProvider, DraxDebug } from './Drax';
 
 const App = () => {
 	return (
@@ -14,13 +14,14 @@ const App = () => {
 			<StatusBar barStyle="dark-content" />
 			<SafeAreaView style={styles.container}>
 				<DraxProvider>
+					<DraxDebug />
 					<Box style={styles.blueBox} name="blue" />
 					<Box style={styles.greenBox} name="green" />
 				</DraxProvider>
-				<DraxProvider>
+				{/* <DraxProvider>
 					<Box style={styles.blueBox} name="blue" />
 					<Box style={styles.greenBox} name="green" />
-				</DraxProvider>
+				</DraxProvider> */}
 			</SafeAreaView>
 		</>
 	);
