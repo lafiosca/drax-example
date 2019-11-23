@@ -142,7 +142,6 @@ export interface DraxViewProps extends ViewProps {}
 export const DraxView: FunctionComponent<DraxViewProps> = ({ children, ...props }) => {
 	const [id, setId] = useState('');
 	const {
-		state,
 		registerView,
 		unregisterView,
 		updateViewLayout,
