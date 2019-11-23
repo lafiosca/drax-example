@@ -1,4 +1,4 @@
-import React, { FunctionComponent, useContext, useCallback } from 'react';
+import React, { FunctionComponent } from 'react';
 import {
 	ViewProps,
 	View,
@@ -6,25 +6,19 @@ import {
 	Button,
 } from 'react-native';
 
-import { DraxContext } from './Drax';
+import { useDrax } from './Drax';
 
 interface Props extends ViewProps {
 	name: string;
 }
 
 export const Box: FunctionComponent<Props> = ({ name, ...props }) => {
-	const { foo, updateFoo } = useContext(DraxContext);
-	const onPress = useCallback(
-		() => {
-			console.log(`Increment foo from ${foo} to ${foo + 1}`);
-			updateFoo(foo + 1);
-		},
-		[foo, updateFoo],
-	);
+	const { foo, incrementFoo, decrementFoo } = useDrax();
 	return (
 		<View {...props}>
 			<Text>{`Zone ${name} (context.foo = ${foo})`}</Text>
-			<Button onPress={onPress} title="+" />
+			<Button onPress={incrementFoo} title="+" />
+			<Button onPress={decrementFoo} title="-" />
 		</View>
 	);
 };
