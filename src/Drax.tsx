@@ -5,6 +5,7 @@ import React, {
 	useCallback,
 	useContext,
 } from 'react';
+import { createAction, ActionType, getType } from 'typesafe-actions';
 
 interface DraxContextValue {
 	foo: number;
@@ -23,14 +24,21 @@ const initialState: DraxState = {
 	foo: 0,
 };
 
-const reducer = (state: DraxState, action: any) => {
+const increment = createAction('increment')();
+const decrement = createAction('decrement')();
+
+const draxActions = { increment, decrement };
+
+type DraxAction = ActionType<typeof draxActions>;
+
+const reducer = (state: DraxState, action: DraxAction): DraxState => {
 	switch (action.type) {
-		case 'increment':
+		case getType(increment):
 			return {
 				...state,
 				foo: state.foo + 1,
 			};
-		case 'decrement':
+		case getType(decrement):
 			return {
 				...state,
 				foo: state.foo - 1,
@@ -46,11 +54,11 @@ interface DraxProviderProps {
 export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ children }) => {
 	const [{ foo }, dispatch] = useReducer(reducer, initialState);
 	const incrementFoo = useCallback(
-		() => dispatch({ type: 'increment' }),
+		() => dispatch(increment()),
 		[dispatch],
 	);
 	const decrementFoo = useCallback(
-		() => dispatch({ type: 'decrement' }),
+		() => dispatch(decrement()),
 		[dispatch],
 	);
 	const value: DraxContextValue = {
