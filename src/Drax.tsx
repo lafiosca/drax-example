@@ -6,12 +6,17 @@ import React, {
 	useContext,
 	useEffect,
 	useState,
+	useRef,
 } from 'react';
 import {
 	LayoutChangeEvent,
 	LayoutRectangle,
 	ViewProps,
 	View,
+	FlatList,
+	FlatListProps,
+	NativeSyntheticEvent,
+	NativeScrollEvent,
 } from 'react-native';
 import { createAction, ActionType, getType } from 'typesafe-actions';
 import uuid from 'uuid/v4';
@@ -141,6 +146,7 @@ export interface DraxViewProps extends ViewProps {}
 
 export const DraxView: FunctionComponent<DraxViewProps> = ({ children, ...props }) => {
 	const [id, setId] = useState('');
+	const ref = useRef<View>(null);
 	const {
 		registerView,
 		unregisterView,
@@ -163,8 +169,21 @@ export const DraxView: FunctionComponent<DraxViewProps> = ({ children, ...props 
 		(event: LayoutChangeEvent) => {
 			const { layout } = event.nativeEvent;
 			updateViewLayout({ id, layout });
+			if (ref.current) {
+				console.log(`Measuring ${id}`);
+				ref.current.measure((x, y, w, h, px, py) => {
+					console.log(`Measured ${id}: ${JSON.stringify({
+						x,
+						y,
+						w,
+						h,
+						px,
+						py,
+					}, null, 2)}`);
+				});
+			}
 		},
-		[id],
+		[id, ref],
 	);
 	if (!id) {
 		return null;
@@ -172,9 +191,87 @@ export const DraxView: FunctionComponent<DraxViewProps> = ({ children, ...props 
 	return (
 		<View
 			{...props}
+			ref={ref}
 			onLayout={onLayout}
 		>
 			{children}
 		</View>
+	);
+};
+
+export interface DraxListProps<T> extends FlatListProps<T> {}
+
+export const DraxList = <T extends unknown>({ ...props }: DraxListProps<T>) => {
+	const [id, setId] = useState('');
+	const ref = useRef<FlatList<T>>(null);
+	const {
+		registerView,
+		unregisterView,
+		updateViewLayout,
+	} = useDrax();
+	useEffect(
+		() => {
+			const newId = uuid();
+			setId(newId);
+			console.log(`registering view id ${newId}`);
+			registerView({ id: newId });
+			return () => {
+				console.log(`unregistering view id ${newId}`);
+				unregisterView({ id: newId });
+			};
+		},
+		[],
+	);
+	const onLayout = useCallback(
+		(event: LayoutChangeEvent) => {
+			const { layout } = event.nativeEvent;
+			updateViewLayout({ id, layout });
+			// if (ref.current) {
+			// 	console.log(`Measuring ${id}`);
+			// 	ref.current._component.measure((x, y, w, h, px, py) => {
+			// 		console.log(`Measured ${id}: ${JSON.stringify({
+			// 			x,
+			// 			y,
+			// 			w,
+			// 			h,
+			// 			px,
+			// 			py,
+			// 		}, null, 2)}`);
+			// 	});
+			// }
+		},
+		[id, ref],
+	);
+	const onScroll = useCallback(
+		(event: NativeSyntheticEvent<NativeScrollEvent>) => {
+			const {
+				contentInset,
+				contentOffset,
+				contentSize,
+				layoutMeasurement,
+				velocity,
+				zoomScale,
+			} = event.nativeEvent;
+			console.log(`onScroll: ${JSON.stringify({
+				contentInset,
+				contentOffset,
+				contentSize,
+				layoutMeasurement,
+				velocity,
+				zoomScale,
+			}, null, 2)}`);
+		},
+		[],
+	);
+	if (!id) {
+		return null;
+	}
+	return (
+		<FlatList
+			{...props}
+			ref={ref}
+			onLayout={onLayout}
+			onScroll={onScroll}
+		/>
 	);
 };

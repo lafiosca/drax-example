@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 
 import { Box } from './Box';
-import { DraxProvider, DraxDebug } from './Drax';
+import { DraxProvider, DraxDebug, DraxList } from './Drax';
 
 const items = [
 	'blue',
@@ -34,9 +34,9 @@ const App = () => {
 				<DraxProvider>
 					<DraxDebug />
 					<View style={{ height: 135 }} />
-					<View style={{ paddingTop: 0 }}>
+					{/* <View style={{ paddingTop: 0 }}>
 						<Box style={styles.blueBox} name="blue" />
-					</View>
+					</View> */}
 					{/* <ScrollView>
 						<Box style={styles.blueBox} name="blue" />
 						<Box style={styles.greenBox} name="green" />
@@ -44,13 +44,13 @@ const App = () => {
 						<Box style={styles.yellowBox} name="yellow" />
 						<Box style={styles.cyanBox} name="cyan" />
 					</ScrollView> */}
-					{/* <FlatList
+					<DraxList
 						data={items.slice(0, count)}
 						renderItem={renderItem}
 						keyExtractor={(item) => item}
-					/> */}
-					{/* <Button title="+" onPress={() => setCount(count + 1)} />
-					<Button title="-" onPress={() => setCount(count - 1)} /> */}
+					/>
+					<Button title="+" onPress={() => setCount(count + 1)} />
+					<Button title="-" onPress={() => setCount(count - 1)} />
 				</DraxProvider>
 				{/* <DraxProvider>
 					<Box style={styles.blueBox} name="blue" />
