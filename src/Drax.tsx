@@ -1,5 +1,6 @@
 import React, {
 	FunctionComponent,
+	RefObject,
 	createContext,
 	useReducer,
 	useCallback,
@@ -10,46 +11,59 @@ import React, {
 } from 'react';
 import {
 	LayoutChangeEvent,
-	LayoutRectangle,
 	ViewProps,
 	View,
 	FlatList,
 	FlatListProps,
 	NativeSyntheticEvent,
 	NativeScrollEvent,
+	MeasureOnSuccessCallback,
 } from 'react-native';
 import { createAction, ActionType, getType } from 'typesafe-actions';
 import uuid from 'uuid/v4';
 
+interface MeasureData {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+	pageX: number;
+	pageY: number;
+}
+
 interface DraxState {
 	viewIds: string[];
-	layoutsByViewId: {
-		[id: string]: LayoutRectangle;
+	viewDataById: {
+		[id: string]: {
+			ref: RefObject<View>;
+			measureData?: MeasureData;
+		}
 	}
 }
 
 const initialState: DraxState = {
 	viewIds: [],
-	layoutsByViewId: {},
+	viewDataById: {},
 };
 
 interface RegisterViewPayload {
 	id: string;
+	ref: RefObject<View>;
 }
 
 interface UnregisterViewPayload {
 	id: string;
 }
 
-interface UpdateViewLayoutPayload {
+interface MeasureViewPayload {
 	id: string;
-	layout: LayoutRectangle;
+	measureData: MeasureData;
 }
 
 const actions = {
 	registerView: createAction('registerView')<RegisterViewPayload>(),
 	unregisterView: createAction('unregisterView')<UnregisterViewPayload>(),
-	updateViewLayout: createAction('updateViewLayout')<UpdateViewLayoutPayload>(),
+	measureView: createAction('measureView')<MeasureViewPayload>(),
 };
 
 type DraxAction = ActionType<typeof actions>;
@@ -57,29 +71,40 @@ type DraxAction = ActionType<typeof actions>;
 const reducer = (state: DraxState, action: DraxAction): DraxState => {
 	switch (action.type) {
 		case getType(actions.registerView): {
-			const { id } = action.payload;
+			const { id, ref } = action.payload;
 			return {
 				...state,
 				viewIds: state.viewIds.indexOf(id) < 0 ? [...state.viewIds, id] : state.viewIds,
+				viewDataById: {
+					...state.viewDataById,
+					[id]: { ref },
+				},
 			};
 		}
 		case getType(actions.unregisterView): {
 			const { id } = action.payload;
-			const { [id]: removedLayout, ...layoutsByViewId } = state.layoutsByViewId;
+			const { [id]: removedLayout, ...viewDataById } = state.viewDataById;
 			return {
 				...state,
-				layoutsByViewId,
+				viewDataById,
 				viewIds: state.viewIds.filter((thisId) => thisId !== id),
 			};
 		}
-		case getType(actions.updateViewLayout): {
-			const { id, layout } = action.payload;
-			console.log(`reducer update (${id}, ${JSON.stringify(layout, null, 2)})`);
+		case getType(actions.measureView): {
+			const { id, measureData } = action.payload;
 			return {
 				...state,
-				layoutsByViewId: {
-					...state.layoutsByViewId,
-					...(state.viewIds.indexOf(id) < 0 ? {} : { [id]: layout }),
+				viewDataById: {
+					...state.viewDataById,
+					...(state.viewIds.indexOf(id) < 0
+						? {}
+						: {
+							[id]: {
+								...state.viewDataById[id],
+								measureData,
+							},
+						}
+					),
 				},
 			};
 		}
@@ -92,34 +117,82 @@ interface DraxContextValue {
 	state: DraxState;
 	registerView: (payload: RegisterViewPayload) => void;
 	unregisterView: (payload: UnregisterViewPayload) => void;
-	updateViewLayout: (payload: UpdateViewLayoutPayload) => void;
+	measureView: (payload: MeasureViewPayload) => void;
 }
 
 const DraxContext = createContext<DraxContextValue | undefined>(undefined);
 DraxContext.displayName = 'Drax';
 
 export interface DraxProviderProps {
+	debug?: boolean;
 }
 
-export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ children }) => {
+export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = false, children }) => {
 	const [state, dispatch] = useReducer(reducer, initialState);
 	const registerView = useCallback(
-		(payload: RegisterViewPayload) => dispatch(actions.registerView(payload)),
-		[dispatch],
+		(payload: RegisterViewPayload) => {
+			if (debug) {
+				console.log(`Dispatching registerView(${JSON.stringify(payload, null, 2)})`);
+			}
+			dispatch(actions.registerView(payload));
+		},
+		[dispatch, debug],
 	);
 	const unregisterView = useCallback(
-		(payload: UnregisterViewPayload) => dispatch(actions.unregisterView(payload)),
-		[dispatch],
+		(payload: UnregisterViewPayload) => {
+			if (debug) {
+				console.log(`Dispatching unregisterView(${JSON.stringify(payload, null, 2)})`);
+			}
+			dispatch(actions.unregisterView(payload));
+		},
+		[dispatch, debug],
 	);
-	const updateViewLayout = useCallback(
-		(payload: UpdateViewLayoutPayload) => dispatch(actions.updateViewLayout(payload)),
-		[dispatch],
+	const measureView = useCallback(
+		(payload: MeasureViewPayload) => {
+			if (debug) {
+				console.log(`Dispatching measureView(${JSON.stringify(payload, null, 2)})`);
+			}
+			dispatch(actions.measureView(payload));
+		},
+		[dispatch, debug],
 	);
+	useEffect(() => {
+		if (debug) {
+			const niceState: any = {
+				...state,
+				viewDataById: {},
+			};
+			Object.keys(state.viewDataById).forEach((key) => {
+				const { ref, ...viewData } = state.viewDataById[key];
+				niceState.viewDataById[key] = viewData;
+			});
+			console.log(`Rendering drax state: ${JSON.stringify(niceState, null, 2)}`);
+		}
+		// state.viewIds.forEach((id) => {
+		// 	const { ref } = state.viewDataById[id];
+		// 	if (ref.current) {
+		// 		if (debug) {
+		// 			console.log(`Measuring viewId ${id}`);
+		// 		}
+		// 		ref.current.measure((x, y, width, height, pageX, pageY) => measureView({
+		// 			id,
+		// 			measureData: {
+		// 				x,
+		// 				y,
+		// 				width,
+		// 				height,
+		// 				pageX,
+		// 				pageY,
+		// 			},
+		// 		}));
+		// 	}
+		// });
+	});
 	const value: DraxContextValue = {
 		state,
 		registerView,
 		unregisterView,
-		updateViewLayout,
+		measureView,
 	};
 	return (
 		<DraxContext.Provider value={value}>
@@ -136,12 +209,6 @@ export const useDrax = () => {
 	return drax;
 };
 
-export const DraxDebug: FunctionComponent = () => {
-	const { state } = useDrax();
-	console.log(`Rendering drax state: ${JSON.stringify(state, null, 2)}`);
-	return null;
-};
-
 export interface DraxViewProps extends ViewProps {}
 
 export const DraxView: FunctionComponent<DraxViewProps> = ({ children, ...props }) => {
@@ -150,37 +217,34 @@ export const DraxView: FunctionComponent<DraxViewProps> = ({ children, ...props 
 	const {
 		registerView,
 		unregisterView,
-		updateViewLayout,
+		measureView,
 	} = useDrax();
 	useEffect(
 		() => {
 			const newId = uuid();
 			setId(newId);
-			console.log(`registering view id ${newId}`);
-			registerView({ id: newId });
-			return () => {
-				console.log(`unregistering view id ${newId}`);
-				unregisterView({ id: newId });
-			};
+			registerView({
+				ref,
+				id: newId,
+			});
+			return () => unregisterView({ id: newId });
 		},
 		[],
 	);
 	const onLayout = useCallback(
-		(event: LayoutChangeEvent) => {
-			const { layout } = event.nativeEvent;
-			updateViewLayout({ id, layout });
+		() => {
 			if (ref.current) {
-				console.log(`Measuring ${id}`);
-				ref.current.measure((x, y, w, h, px, py) => {
-					console.log(`Measured ${id}: ${JSON.stringify({
+				ref.current.measure((x, y, width, height, pageX, pageY) => measureView({
+					id,
+					measureData: {
 						x,
 						y,
-						w,
-						h,
-						px,
-						py,
-					}, null, 2)}`);
-				});
+						width,
+						height,
+						pageX,
+						pageY,
+					},
+				}));
 			}
 		},
 		[id, ref],
@@ -199,79 +263,79 @@ export const DraxView: FunctionComponent<DraxViewProps> = ({ children, ...props 
 	);
 };
 
-export interface DraxListProps<T> extends FlatListProps<T> {}
+// export interface DraxListProps<T> extends FlatListProps<T> {}
 
-export const DraxList = <T extends unknown>({ ...props }: DraxListProps<T>) => {
-	const [id, setId] = useState('');
-	const ref = useRef<FlatList<T>>(null);
-	const {
-		registerView,
-		unregisterView,
-		updateViewLayout,
-	} = useDrax();
-	useEffect(
-		() => {
-			const newId = uuid();
-			setId(newId);
-			console.log(`registering view id ${newId}`);
-			registerView({ id: newId });
-			return () => {
-				console.log(`unregistering view id ${newId}`);
-				unregisterView({ id: newId });
-			};
-		},
-		[],
-	);
-	const onLayout = useCallback(
-		(event: LayoutChangeEvent) => {
-			const { layout } = event.nativeEvent;
-			updateViewLayout({ id, layout });
-			// if (ref.current) {
-			// 	console.log(`Measuring ${id}`);
-			// 	ref.current._component.measure((x, y, w, h, px, py) => {
-			// 		console.log(`Measured ${id}: ${JSON.stringify({
-			// 			x,
-			// 			y,
-			// 			w,
-			// 			h,
-			// 			px,
-			// 			py,
-			// 		}, null, 2)}`);
-			// 	});
-			// }
-		},
-		[id, ref],
-	);
-	const onScroll = useCallback(
-		(event: NativeSyntheticEvent<NativeScrollEvent>) => {
-			const {
-				contentInset,
-				contentOffset,
-				contentSize,
-				layoutMeasurement,
-				velocity,
-				zoomScale,
-			} = event.nativeEvent;
-			console.log(`onScroll: ${JSON.stringify({
-				contentInset,
-				contentOffset,
-				contentSize,
-				layoutMeasurement,
-				velocity,
-				zoomScale,
-			}, null, 2)}`);
-		},
-		[],
-	);
-	if (!id) {
-		return null;
-	}
-	return (
-		<FlatList
-			{...props}
-			ref={ref}
-			onLayout={onLayout}
-			onScroll={onScroll}
-		/>
-	);
-};
+// export const DraxList = <T extends unknown>({ ...props }: DraxListProps<T>) => {
+// 	const [id, setId] = useState('');
+// 	const ref = useRef<FlatList<T>>(null);
+// 	const {
+// 		registerView,
+// 		unregisterView,
+// 		updateViewLayout,
+// 	} = useDrax();
+// 	useEffect(
+// 		() => {
+// 			const newId = uuid();
+// 			setId(newId);
+// 			console.log(`registering view id ${newId}`);
+// 			registerView({ id: newId });
+// 			return () => {
+// 				console.log(`unregistering view id ${newId}`);
+// 				unregisterView({ id: newId });
+// 			};
+// 		},
+// 		[],
+// 	);
+// 	const onLayout = useCallback(
+// 		(event: LayoutChangeEvent) => {
+// 			const { layout } = event.nativeEvent;
+// 			updateViewLayout({ id, layout });
+// 			// if (ref.current) {
+// 			// 	console.log(`Measuring ${id}`);
+// 			// 	ref.current._component.measure((x, y, w, h, px, py) => {
+// 			// 		console.log(`Measured ${id}: ${JSON.stringify({
+// 			// 			x,
+// 			// 			y,
+// 			// 			w,
+// 			// 			h,
+// 			// 			px,
+// 			// 			py,
+// 			// 		}, null, 2)}`);
+// 			// 	});
+// 			// }
+// 		},
+// 		[id, ref],
+// 	);
+// 	const onScroll = useCallback(
+// 		(event: NativeSyntheticEvent<NativeScrollEvent>) => {
+// 			const {
+// 				contentInset,
+// 				contentOffset,
+// 				contentSize,
+// 				layoutMeasurement,
+// 				velocity,
+// 				zoomScale,
+// 			} = event.nativeEvent;
+// 			console.log(`onScroll: ${JSON.stringify({
+// 				contentInset,
+// 				contentOffset,
+// 				contentSize,
+// 				layoutMeasurement,
+// 				velocity,
+// 				zoomScale,
+// 			}, null, 2)}`);
+// 		},
+// 		[],
+// 	);
+// 	if (!id) {
+// 		return null;
+// 	}
+// 	return (
+// 		<FlatList
+// 			{...props}
+// 			ref={ref}
+// 			onLayout={onLayout}
+// 			onScroll={onScroll}
+// 		/>
+// 	);
+// };

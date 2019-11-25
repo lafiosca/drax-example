@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 
 import { Box } from './Box';
-import { DraxProvider, DraxDebug, DraxList } from './Drax';
+import { DraxProvider } from './Drax';
 
 const items = [
 	'blue',
@@ -31,9 +31,12 @@ const App = () => {
 		<>
 			<StatusBar barStyle="dark-content" />
 			<SafeAreaView style={styles.container}>
-				<DraxProvider>
-					<DraxDebug />
-					<View style={{ height: 135 }} />
+				<DraxProvider debug>
+					{/* {items.slice(0, count).map((item) => (
+						<View key={`padding${item}`} style={{ height: 23 }} />
+					))} */}
+					<View style={{ height: 23 * count }} />
+					<Box style={styles.blueBox} name="blue" />
 					{/* <View style={{ paddingTop: 0 }}>
 						<Box style={styles.blueBox} name="blue" />
 					</View> */}
@@ -44,11 +47,11 @@ const App = () => {
 						<Box style={styles.yellowBox} name="yellow" />
 						<Box style={styles.cyanBox} name="cyan" />
 					</ScrollView> */}
-					<DraxList
+					{/* <DraxList
 						data={items.slice(0, count)}
 						renderItem={renderItem}
 						keyExtractor={(item) => item}
-					/>
+					/> */}
 					<Button title="+" onPress={() => setCount(count + 1)} />
 					<Button title="-" onPress={() => setCount(count - 1)} />
 				</DraxProvider>
