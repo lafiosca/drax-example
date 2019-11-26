@@ -3,14 +3,8 @@ import {
 	SafeAreaView,
 	StyleSheet,
 	StatusBar,
-	View,
-	ScrollView,
-	FlatList,
-	ListRenderItemInfo,
 	Button,
-	Text,
 } from 'react-native';
-import { LongPressGestureHandler, State } from 'react-native-gesture-handler';
 
 import { DraxProvider, DraxView } from './Drax';
 

@@ -42,21 +42,41 @@ interface MeasureData {
 	pageY: number;
 }
 
+interface DraxProtocolProps {
+	onDragStart?: () => void;
+	onDrag?: () => void;
+	onDragEnter?: (payload: any) => void;
+	onDragOver?: (payload: any) => void;
+	onDragExit?: (payload: any) => void;
+	onDragEnd?: () => void;
+	onDrop?: (payload: any) => void;
+
+	onReceiveDragEnter?: (payload: any) => void;
+	onReceiveDragOver?: (payload: any) => void;
+	onReceiveDragExit?: (payload: any) => void;
+	onReceiveDrop?: (payload: any) => void;
+
+	dragPayload?: any;
+	receiverPayload?: any;
+}
+
 interface DraxState {
 	viewIds: string[];
 	viewDataById: {
-		[id: string]: {
+		[id: string]: DraxProtocolProps & {
 			measureData?: MeasureData;
-		}
-	}
+		};
+	};
+	draggingId: string | undefined;
 }
 
 const initialState: DraxState = {
 	viewIds: [],
 	viewDataById: {},
+	draggingId: undefined,
 };
 
-interface RegisterViewPayload {
+interface RegisterViewPayload extends DraxProtocolProps {
 	id: string;
 }
 
@@ -80,19 +100,22 @@ type DraxAction = ActionType<typeof actions>;
 const reducer = (state: DraxState, action: DraxAction): DraxState => {
 	switch (action.type) {
 		case getType(actions.registerView): {
-			const { id } = action.payload;
+			const { id, ...protocolProps } = action.payload;
 			return {
 				...state,
 				viewIds: state.viewIds.indexOf(id) < 0 ? [...state.viewIds, id] : state.viewIds,
 				viewDataById: {
 					...state.viewDataById,
-					[id]: {},
+					[id]: {
+						...state.viewDataById[id],
+						...protocolProps,
+					},
 				},
 			};
 		}
 		case getType(actions.unregisterView): {
 			const { id } = action.payload;
-			const { [id]: removedLayout, ...viewDataById } = state.viewDataById;
+			const { [id]: removed, ...viewDataById } = state.viewDataById;
 			return {
 				...state,
 				viewDataById,
@@ -127,6 +150,8 @@ interface DraxContextValue {
 	registerView: (payload: RegisterViewPayload) => void;
 	unregisterView: (payload: UnregisterViewPayload) => void;
 	measureView: (payload: MeasureViewPayload) => void;
+	handleGestureStateChange: (id: string, event: PanGestureHandlerStateChangeEvent) => void;
+	handleGestureEvent: (id: string, event: PanGestureHandlerGestureEvent) => void;
 }
 
 const DraxContext = createContext<DraxContextValue | undefined>(undefined);
@@ -165,16 +190,24 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		},
 		[dispatch, debug],
 	);
+	const handleGestureStateChange = useCallback(
+		(id: string, event: PanGestureHandlerStateChangeEvent) => {
+			if (debug) {
+				console.log(`handleGestureStateChange(${id}, ${JSON.stringify(event.nativeEvent, null, 2)})`);
+			}
+		},
+		[dispatch, debug],
+	);
+	const handleGestureEvent = useCallback(
+		(id: string, event: PanGestureHandlerGestureEvent) => {
+			if (debug) {
+				console.log(`handleGestureEvent(${id}, ${JSON.stringify(event.nativeEvent, null, 2)})`);
+			}
+		},
+		[dispatch, debug],
+	);
 	useEffect(() => {
 		if (debug) {
-			// const niceState: any = {
-			// 	...state,
-			// 	viewDataById: {},
-			// };
-			// Object.keys(state.viewDataById).forEach((key) => {
-			// 	const { ref, ...viewData } = state.viewDataById[key];
-			// 	niceState.viewDataById[key] = viewData;
-			// });
 			console.log(`Rendering drax state: ${JSON.stringify(state, null, 2)}`);
 		}
 	});
@@ -183,6 +216,8 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		registerView,
 		unregisterView,
 		measureView,
+		handleGestureStateChange,
+		handleGestureEvent,
 	};
 	return (
 		<DraxContext.Provider value={value}>
@@ -199,29 +234,13 @@ export const useDrax = () => {
 	return drax;
 };
 
-export interface DraxViewProps<TDragPayload, TReceiverPayload> extends ViewProps {
-	onDragStart?: () => void;
-	onDrag?: () => void;
-	onDragEnter?: (payload: TReceiverPayload) => void;
-	onDragOver?: (payload: TReceiverPayload) => void;
-	onDragExit?: (payload: TReceiverPayload) => void;
-	onDragEnd?: () => void;
-	onDrop?: (payload: TReceiverPayload) => void;
-
-	onReceiveDragEnter?: (payload: TDragPayload) => void;
-	onReceiveDragOver?: (payload: TDragPayload) => void;
-	onReceiveDragExit?: (payload: TDragPayload) => void;
-	onReceiveDrop?: (payload: TDragPayload) => void;
-
-	dragPayload?: TDragPayload;
-	receiverPayload?: TReceiverPayload;
-}
+export interface DraxViewProps extends DraxProtocolProps, ViewProps {}
 
 interface AnimatedViewRef { // workaround for lack of Animated.View type
 	getNode: () => View;
 }
 
-export const DraxView = <TDragPayload, TReceiverPayload = TDragPayload>(
+export const DraxView = (
 	{
 		onDragStart,
 		onDrag,
@@ -238,7 +257,7 @@ export const DraxView = <TDragPayload, TReceiverPayload = TDragPayload>(
 		receiverPayload,
 		children,
 		...props
-	}: PropsWithChildren<DraxViewProps<TDragPayload, TReceiverPayload>>,
+	}: PropsWithChildren<DraxViewProps>,
 ): ReactElement | null => {
 	const [id, setId] = useState('');
 	const ref = useRef<AnimatedViewRef>(null);
@@ -246,6 +265,8 @@ export const DraxView = <TDragPayload, TReceiverPayload = TDragPayload>(
 		registerView,
 		unregisterView,
 		measureView,
+		handleGestureEvent,
+		handleGestureStateChange,
 	} = useDrax();
 	useEffect(() => { setId(uuid()); }, []); // initialize id once
 	useEffect(
@@ -255,26 +276,46 @@ export const DraxView = <TDragPayload, TReceiverPayload = TDragPayload>(
 			}
 			registerView({
 				id,
+				onDragStart,
+				onDrag,
+				onDragEnter,
+				onDragOver,
+				onDragExit,
+				onDragEnd,
+				onDrop,
+				onReceiveDragEnter,
+				onReceiveDragOver,
+				onReceiveDragExit,
+				onReceiveDrop,
+				dragPayload,
+				receiverPayload,
 			});
 			return () => unregisterView({ id });
 		},
-		[id],
+		[
+			id,
+			onDragStart,
+			onDrag,
+			onDragEnter,
+			onDragOver,
+			onDragExit,
+			onDragEnd,
+			onDrop,
+			onReceiveDragEnter,
+			onReceiveDragOver,
+			onReceiveDragExit,
+			onReceiveDrop,
+			dragPayload,
+			receiverPayload,
+		],
 	);
 	const onHandlerStateChange = useCallback(
-		(event: PanGestureHandlerStateChangeEvent) => {
-			console.log(`state change ${event.nativeEvent.oldState} -> ${event.nativeEvent.state}`);
-			console.log(`trans (${event.nativeEvent.translationX}, ${event.nativeEvent.translationY})`);
-			console.log(`abs (${event.nativeEvent.absoluteX}, ${event.nativeEvent.absoluteY})`);
-		},
-		[],
+		(event: PanGestureHandlerStateChangeEvent) => handleGestureStateChange(id, event),
+		[id],
 	);
 	const onGestureEvent = useCallback(
-		(event: PanGestureHandlerGestureEvent) => {
-			console.log('gesture event');
-			console.log(`trans (${event.nativeEvent.translationX}, ${event.nativeEvent.translationY})`);
-			console.log(`abs (${event.nativeEvent.absoluteX}, ${event.nativeEvent.absoluteY})`);
-		},
-		[],
+		(event: PanGestureHandlerGestureEvent) => handleGestureEvent(id, event),
+		[id],
 	);
 	const onLayout = useCallback(
 		() => {
