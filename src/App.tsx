@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { LongPressGestureHandler, State } from 'react-native-gesture-handler';
 
-import { Box, Box2 } from './Box';
 import { DraxProvider, DraxView } from './Drax';
 
 const items = [
@@ -23,9 +22,10 @@ const items = [
 	'cyan',
 ];
 
-const renderItem = ({ item }: ListRenderItemInfo<string>) => (
-	<Box style={styles[`${item}Box`]} name={item} />
-);
+interface DX {
+	a: number;
+	b?: string;
+}
 
 const App = () => {
 	const [count, setCount] = useState(0);
@@ -34,55 +34,17 @@ const App = () => {
 			<StatusBar barStyle="dark-content" />
 			<SafeAreaView style={styles.container}>
 				<DraxProvider debug>
-					{/* {items.slice(0, count).map((item) => (
-						<View key={`padding${item}`} style={{ height: 23 }} />
-					))} */}
-					<View style={{ height: 23 * count }} />
-					<LongPressGestureHandler
-						onHandlerStateChange={({ nativeEvent }) => {
-							console.log(`nativeEvent.state = ${nativeEvent.state}`);
-							if (nativeEvent.state === State.ACTIVE) {
-								const {
-									x,
-									y,
-									absoluteX,
-									absoluteY,
-								} = nativeEvent;
-								console.log(`long press at ${x}, ${y}, absolute: ${absoluteX}, ${absoluteY}`);
-							}
+					<DraxView
+						style={styles.blueBox}
+						onReceiveDragEnter={(payload: DX) => {
+							console.log(`received payload: ${JSON.stringify(payload, null, 2)}`);
 						}}
-						minDurationMs={100}
-					>
-						{/* <DraxView style={styles.blueBox}>
-							<Text>Zone</Text>
-						</DraxView> */}
-						{/* <View style={styles.blueBox} /> */}
-						<Box style={styles.blueBox} name="blue" />
-						{/* <Box2 style={styles.blueBox} name="blue" /> */}
-					</LongPressGestureHandler>
-					{/* <Box style={styles.blueBox} name="blue" /> */}
-					{/* <View style={{ paddingTop: 0 }}>
-						<Box style={styles.blueBox} name="blue" />
-					</View> */}
-					{/* <ScrollView>
-						<Box style={styles.blueBox} name="blue" />
-						<Box style={styles.greenBox} name="green" />
-						<Box style={styles.redBox} name="red" />
-						<Box style={styles.yellowBox} name="yellow" />
-						<Box style={styles.cyanBox} name="cyan" />
-					</ScrollView> */}
-					{/* <DraxList
-						data={items.slice(0, count)}
-						renderItem={renderItem}
-						keyExtractor={(item) => item}
-					/> */}
+						dragPayload={{ a: 1 }}
+					/>
+					<DraxView style={styles.greenBox} />
 					<Button title="+" onPress={() => setCount(count + 1)} />
 					<Button title="-" onPress={() => setCount(count - 1)} />
 				</DraxProvider>
-				{/* <DraxProvider>
-					<Box style={styles.blueBox} name="blue" />
-					<Box style={styles.greenBox} name="green" />
-				</DraxProvider> */}
 			</SafeAreaView>
 		</>
 	);

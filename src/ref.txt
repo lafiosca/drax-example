@@ -1,0 +1,25 @@
+forwardRef: https://github.com/DefinitelyTyped/DefinitelyTyped/blob/6323ec4f01bdcd3e901f09d01eefaf2b15306f4b/types/react/index.d.ts#L751
+
+forwardRef uses T (type of ref data) and P (type of props). It is a function which takes as single argument a RefForwardingComponent using the same T and P. It returns a ForwardRefExoticComponent using an intersection of types which is essentially P with any `ref` prop omitted, plus `key` and the appropriate `ref` for T.
+
+
+RefForwardingComponent: https://github.com/DefinitelyTyped/DefinitelyTyped/blob/6323ec4f01bdcd3e901f09d01eefaf2b15306f4b/types/react/index.d.ts#L523-L529
+
+RefForwardingComponent uses T (type of ref data) and P (type of props). It specifies that the component function signature should accept PropsWithChildren<P> as the first argument. This ensures that component will accept children even if the props type definition doesn't include them.
+
+
+ForwardRefExoticComponent: https://github.com/DefinitelyTyped/DefinitelyTyped/blob/6323ec4f01bdcd3e901f09d01eefaf2b15306f4b/types/react/index.d.ts#L746-L749
+
+ForwardRefExoticComponent uses P (type of props) and is a NamedExoticComponent<P> with the addition of `defaultProps` and `propTypes` for P.
+
+
+NamedExoticComponent: https://github.com/DefinitelyTyped/DefinitelyTyped/blob/6323ec4f01bdcd3e901f09d01eefaf2b15306f4b/types/react/index.d.ts#L325-L327
+
+NamedExoticComponent uses P (type of props) and is an ExoticComponent<P> with the addition of `displayName`.
+
+
+ExoticComponent: https://github.com/DefinitelyTyped/DefinitelyTyped/blob/6323ec4f01bdcd3e901f09d01eefaf2b15306f4b/types/react/index.d.ts#L307-L323
+
+ExoticComponent uses P (type of props) and specifies a function signature which takes props of type P. Note that this differs from RefForwardingComponent and FunctionComponent in the fact that there is no PropsWithChildren wrapped around P for the props argument.
+
+

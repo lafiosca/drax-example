@@ -10,6 +10,9 @@ import React, {
 	useState,
 	useRef,
 	forwardRef,
+	Ref,
+	ReactNode,
+	ReactElement,
 } from 'react';
 import {
 	LayoutChangeEvent,
@@ -20,9 +23,14 @@ import {
 	NativeSyntheticEvent,
 	NativeScrollEvent,
 	MeasureOnSuccessCallback,
+	Animated,
 } from 'react-native';
 import { createAction, ActionType, getType } from 'typesafe-actions';
-import composeRefs from '@seznam/compose-react-refs';
+import {
+	PanGestureHandler,
+	PanGestureHandlerGestureEvent,
+	PanGestureHandlerStateChangeEvent,
+} from 'react-native-gesture-handler';
 import uuid from 'uuid/v4';
 
 interface MeasureData {
@@ -38,7 +46,6 @@ interface DraxState {
 	viewIds: string[];
 	viewDataById: {
 		[id: string]: {
-			ref: RefObject<View>;
 			measureData?: MeasureData;
 		}
 	}
@@ -51,7 +58,6 @@ const initialState: DraxState = {
 
 interface RegisterViewPayload {
 	id: string;
-	ref: RefObject<View>;
 }
 
 interface UnregisterViewPayload {
@@ -74,13 +80,13 @@ type DraxAction = ActionType<typeof actions>;
 const reducer = (state: DraxState, action: DraxAction): DraxState => {
 	switch (action.type) {
 		case getType(actions.registerView): {
-			const { id, ref } = action.payload;
+			const { id } = action.payload;
 			return {
 				...state,
 				viewIds: state.viewIds.indexOf(id) < 0 ? [...state.viewIds, id] : state.viewIds,
 				viewDataById: {
 					...state.viewDataById,
-					[id]: { ref },
+					[id]: {},
 				},
 			};
 		}
@@ -161,35 +167,16 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 	);
 	useEffect(() => {
 		if (debug) {
-			const niceState: any = {
-				...state,
-				viewDataById: {},
-			};
-			Object.keys(state.viewDataById).forEach((key) => {
-				const { ref, ...viewData } = state.viewDataById[key];
-				niceState.viewDataById[key] = viewData;
-			});
-			console.log(`Rendering drax state: ${JSON.stringify(niceState, null, 2)}`);
+			// const niceState: any = {
+			// 	...state,
+			// 	viewDataById: {},
+			// };
+			// Object.keys(state.viewDataById).forEach((key) => {
+			// 	const { ref, ...viewData } = state.viewDataById[key];
+			// 	niceState.viewDataById[key] = viewData;
+			// });
+			console.log(`Rendering drax state: ${JSON.stringify(state, null, 2)}`);
 		}
-		// state.viewIds.forEach((id) => {
-		// 	const { ref } = state.viewDataById[id];
-		// 	if (ref.current) {
-		// 		if (debug) {
-		// 			console.log(`Measuring viewId ${id}`);
-		// 		}
-		// 		ref.current.measure((x, y, width, height, pageX, pageY) => measureView({
-		// 			id,
-		// 			measureData: {
-		// 				x,
-		// 				y,
-		// 				width,
-		// 				height,
-		// 				pageX,
-		// 				pageY,
-		// 			},
-		// 		}));
-		// 	}
-		// });
 	});
 	const value: DraxContextValue = {
 		state,
@@ -212,32 +199,87 @@ export const useDrax = () => {
 	return drax;
 };
 
-export interface DraxViewProps extends ViewProps {}
+export interface DraxViewProps<TDragPayload, TReceiverPayload> extends ViewProps {
+	onDragStart?: () => void;
+	onDrag?: () => void;
+	onDragEnter?: (payload: TReceiverPayload) => void;
+	onDragOver?: (payload: TReceiverPayload) => void;
+	onDragExit?: (payload: TReceiverPayload) => void;
+	onDragEnd?: () => void;
+	onDrop?: (payload: TReceiverPayload) => void;
 
-export const DraxView = forwardRef<View, PropsWithChildren<DraxViewProps>>(({ children, ...props }, outerRef) => {
+	onReceiveDragEnter?: (payload: TDragPayload) => void;
+	onReceiveDragOver?: (payload: TDragPayload) => void;
+	onReceiveDragExit?: (payload: TDragPayload) => void;
+	onReceiveDrop?: (payload: TDragPayload) => void;
+
+	dragPayload?: TDragPayload;
+	receiverPayload?: TReceiverPayload;
+}
+
+interface AnimatedViewRef { // workaround for lack of Animated.View type
+	getNode: () => View;
+}
+
+export const DraxView = <TDragPayload, TReceiverPayload = TDragPayload>(
+	{
+		onDragStart,
+		onDrag,
+		onDragEnter,
+		onDragOver,
+		onDragExit,
+		onDragEnd,
+		onDrop,
+		onReceiveDragEnter,
+		onReceiveDragOver,
+		onReceiveDragExit,
+		onReceiveDrop,
+		dragPayload,
+		receiverPayload,
+		children,
+		...props
+	}: PropsWithChildren<DraxViewProps<TDragPayload, TReceiverPayload>>,
+): ReactElement | null => {
 	const [id, setId] = useState('');
-	const ref = useRef<View>(null);
+	const ref = useRef<AnimatedViewRef>(null);
 	const {
 		registerView,
 		unregisterView,
 		measureView,
 	} = useDrax();
+	useEffect(() => { setId(uuid()); }, []); // initialize id once
 	useEffect(
 		() => {
-			const newId = uuid();
-			setId(newId);
+			if (!id) {
+				return undefined;
+			}
 			registerView({
-				ref,
-				id: newId,
+				id,
 			});
-			return () => unregisterView({ id: newId });
+			return () => unregisterView({ id });
+		},
+		[id],
+	);
+	const onHandlerStateChange = useCallback(
+		(event: PanGestureHandlerStateChangeEvent) => {
+			console.log(`state change ${event.nativeEvent.oldState} -> ${event.nativeEvent.state}`);
+			console.log(`trans (${event.nativeEvent.translationX}, ${event.nativeEvent.translationY})`);
+			console.log(`abs (${event.nativeEvent.absoluteX}, ${event.nativeEvent.absoluteY})`);
+		},
+		[],
+	);
+	const onGestureEvent = useCallback(
+		(event: PanGestureHandlerGestureEvent) => {
+			console.log('gesture event');
+			console.log(`trans (${event.nativeEvent.translationX}, ${event.nativeEvent.translationY})`);
+			console.log(`abs (${event.nativeEvent.absoluteX}, ${event.nativeEvent.absoluteY})`);
 		},
 		[],
 	);
 	const onLayout = useCallback(
 		() => {
 			if (ref.current) {
-				ref.current.measure((x, y, width, height, pageX, pageY) => measureView({
+				ref.current.getNode().measure((x, y, width, height, pageX, pageY) => measureView({
 					id,
 					measureData: {
 						x,
@@ -253,15 +295,20 @@ export const DraxView = forwardRef<View, PropsWithChildren<DraxViewProps>>(({ ch
 		[id, ref],
 	);
 	return (
-		<View
-			{...props}
-			ref={composeRefs(outerRef, ref)}
-			onLayout={onLayout}
+		<PanGestureHandler
+			onHandlerStateChange={onHandlerStateChange}
+			onGestureEvent={onGestureEvent}
 		>
-			{children}
-		</View>
+			<Animated.View
+				{...props}
+				ref={ref}
+				onLayout={onLayout}
+			>
+				{children}
+			</Animated.View>
+		</PanGestureHandler>
 	);
-});
+};
 
 // export interface DraxListProps<T> extends FlatListProps<T> {}
 
