@@ -1,6 +1,5 @@
 import React, {
 	FunctionComponent,
-	RefObject,
 	PropsWithChildren,
 	createContext,
 	useReducer,
@@ -9,20 +8,11 @@ import React, {
 	useEffect,
 	useState,
 	useRef,
-	forwardRef,
-	Ref,
-	ReactNode,
 	ReactElement,
 } from 'react';
 import {
-	LayoutChangeEvent,
 	ViewProps,
 	View,
-	FlatList,
-	FlatListProps,
-	NativeSyntheticEvent,
-	NativeScrollEvent,
-	MeasureOnSuccessCallback,
 	Animated,
 } from 'react-native';
 import { createAction, ActionType, getType } from 'typesafe-actions';
@@ -30,6 +20,7 @@ import {
 	PanGestureHandler,
 	PanGestureHandlerGestureEvent,
 	PanGestureHandlerStateChangeEvent,
+	State,
 } from 'react-native-gesture-handler';
 import uuid from 'uuid/v4';
 
@@ -67,13 +58,11 @@ interface DraxState {
 			measureData?: MeasureData;
 		};
 	};
-	draggingId: string | undefined;
 }
 
 const initialState: DraxState = {
 	viewIds: [],
 	viewDataById: {},
-	draggingId: undefined,
 };
 
 interface RegisterViewPayload extends DraxProtocolProps {
@@ -163,6 +152,7 @@ export interface DraxProviderProps {
 
 export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = false, children }) => {
 	const [state, dispatch] = useReducer(reducer, initialState);
+	const draggingIdRef = useRef<string | undefined>(undefined);
 	const registerView = useCallback(
 		(payload: RegisterViewPayload) => {
 			if (debug) {
@@ -191,12 +181,78 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		[dispatch, debug],
 	);
 	const handleGestureStateChange = useCallback(
-		(id: string, event: PanGestureHandlerStateChangeEvent) => {
+		(id: string, { nativeEvent }: PanGestureHandlerStateChangeEvent) => {
 			if (debug) {
-				console.log(`handleGestureStateChange(${id}, ${JSON.stringify(event.nativeEvent, null, 2)})`);
+				console.log(`handleGestureStateChange(${id}, ${JSON.stringify(nativeEvent, null, 2)})`);
+			}
+			const draggingId = draggingIdRef.current;
+			if (draggingId) {
+				if (draggingId !== id) {
+					if (debug) {
+						console.log(`Ignoring gesture state change because another view is being dragged: ${draggingId}`);
+					}
+					return;
+				}
+				// this is the id we're already dragging
+				switch (nativeEvent.state) {
+					case State.BEGAN:
+						if (debug) {
+							console.log(`Received unexpected BEGAN event for view id ${id}`);
+						}
+						break;
+					case State.ACTIVE:
+						if (debug) {
+							console.log(`Continue dragging view id ${id} (ACTIVE)`);
+						}
+						break;
+					case State.CANCELLED:
+						if (debug) {
+							console.log(`Stop dragging view id ${id} (CANCELLED)`);
+						}
+						draggingIdRef.current = undefined;
+						break;
+					case State.FAILED:
+						if (debug) {
+							console.log(`Stop dragging view id ${id} (FAILED)`);
+						}
+						draggingIdRef.current = undefined;
+						break;
+					case State.END:
+						if (debug) {
+							console.log(`Stop dragging view id ${id} (END)`);
+						}
+						draggingIdRef.current = undefined;
+						break;
+					default:
+						if (debug) {
+							console.log(`Unrecognized gesture state ${nativeEvent.state}`);
+						}
+						break;
+				}
+				return;
+			}
+			// draggingId is not set yet
+			switch (nativeEvent.state) {
+				case State.BEGAN:
+				case State.ACTIVE:
+					if (debug) {
+						console.log(`Begin dragging view id ${id}`);
+					}
+					draggingIdRef.current = id;
+					break;
+				case State.CANCELLED:
+				case State.FAILED:
+				case State.END:
+					/* do nothing because we weren't tracking this gesture */
+					break;
+				default:
+					if (debug) {
+						console.log(`Unrecognized gesture state ${nativeEvent.state}`);
+					}
+					break;
 			}
 		},
-		[dispatch, debug],
+		[dispatch, debug, draggingIdRef],
 	);
 	const handleGestureEvent = useCallback(
 		(id: string, event: PanGestureHandlerGestureEvent) => {

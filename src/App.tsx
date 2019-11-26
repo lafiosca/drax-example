@@ -8,13 +8,13 @@ import {
 
 import { DraxProvider, DraxView } from './Drax';
 
-const items = [
-	'blue',
-	'green',
-	'red',
-	'yellow',
-	'cyan',
-];
+// const items = [
+// 	'blue',
+// 	'green',
+// 	'red',
+// 	'yellow',
+// 	'cyan',
+// ];
 
 interface DX {
 	a: number;
