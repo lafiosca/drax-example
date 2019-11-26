@@ -8,10 +8,12 @@ import {
 	FlatList,
 	ListRenderItemInfo,
 	Button,
+	Text,
 } from 'react-native';
+import { LongPressGestureHandler, State } from 'react-native-gesture-handler';
 
-import { Box } from './Box';
-import { DraxProvider } from './Drax';
+import { Box, Box2 } from './Box';
+import { DraxProvider, DraxView } from './Drax';
 
 const items = [
 	'blue',
@@ -36,7 +38,29 @@ const App = () => {
 						<View key={`padding${item}`} style={{ height: 23 }} />
 					))} */}
 					<View style={{ height: 23 * count }} />
-					<Box style={styles.blueBox} name="blue" />
+					<LongPressGestureHandler
+						onHandlerStateChange={({ nativeEvent }) => {
+							console.log(`nativeEvent.state = ${nativeEvent.state}`);
+							if (nativeEvent.state === State.ACTIVE) {
+								const {
+									x,
+									y,
+									absoluteX,
+									absoluteY,
+								} = nativeEvent;
+								console.log(`long press at ${x}, ${y}, absolute: ${absoluteX}, ${absoluteY}`);
+							}
+						}}
+						minDurationMs={100}
+					>
+						{/* <DraxView style={styles.blueBox}>
+							<Text>Zone</Text>
+						</DraxView> */}
+						{/* <View style={styles.blueBox} /> */}
+						<Box style={styles.blueBox} name="blue" />
+						{/* <Box2 style={styles.blueBox} name="blue" /> */}
+					</LongPressGestureHandler>
+					{/* <Box style={styles.blueBox} name="blue" /> */}
 					{/* <View style={{ paddingTop: 0 }}>
 						<Box style={styles.blueBox} name="blue" />
 					</View> */}

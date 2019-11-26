@@ -1,14 +1,20 @@
-import React, { FunctionComponent } from 'react';
-import { Text } from 'react-native';
+import React, { PropsWithChildren, forwardRef } from 'react';
+import { Text, View } from 'react-native';
 
 import { DraxViewProps, DraxView } from './Drax';
 
-interface Props extends DraxViewProps {
+interface BoxProps extends DraxViewProps {
 	name: string;
 }
 
-export const Box: FunctionComponent<Props> = ({ name, ...props }) => (
-	<DraxView {...props}>
+export const Box = forwardRef<View, PropsWithChildren<BoxProps>>(({ name, ...props }, ref) => (
+	<DraxView {...props} ref={ref}>
 		<Text>{`Zone ${name}`}</Text>
 	</DraxView>
-);
+));
+
+export const Box2 = forwardRef<View, PropsWithChildren<BoxProps>>(({ name, ...props }, ref) => (
+	<View {...props} ref={ref}>
+		<Text>{`Zone ${name}`}</Text>
+	</View>
+));

@@ -1,6 +1,7 @@
 import React, {
 	FunctionComponent,
 	RefObject,
+	PropsWithChildren,
 	createContext,
 	useReducer,
 	useCallback,
@@ -8,6 +9,7 @@ import React, {
 	useEffect,
 	useState,
 	useRef,
+	forwardRef,
 } from 'react';
 import {
 	LayoutChangeEvent,
@@ -20,6 +22,7 @@ import {
 	MeasureOnSuccessCallback,
 } from 'react-native';
 import { createAction, ActionType, getType } from 'typesafe-actions';
+import composeRefs from '@seznam/compose-react-refs';
 import uuid from 'uuid/v4';
 
 interface MeasureData {
@@ -211,7 +214,7 @@ export const useDrax = () => {
 
 export interface DraxViewProps extends ViewProps {}
 
-export const DraxView: FunctionComponent<DraxViewProps> = ({ children, ...props }) => {
+export const DraxView = forwardRef<View, PropsWithChildren<DraxViewProps>>(({ children, ...props }, outerRef) => {
 	const [id, setId] = useState('');
 	const ref = useRef<View>(null);
 	const {
@@ -249,19 +252,16 @@ export const DraxView: FunctionComponent<DraxViewProps> = ({ children, ...props 
 		},
 		[id, ref],
 	);
-	if (!id) {
-		return null;
-	}
 	return (
 		<View
 			{...props}
-			ref={ref}
+			ref={composeRefs(outerRef, ref)}
 			onLayout={onLayout}
 		>
 			{children}
 		</View>
 	);
-};
+});
 
 // export interface DraxListProps<T> extends FlatListProps<T> {}
 
