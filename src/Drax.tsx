@@ -25,12 +25,12 @@ import {
 import uuid from 'uuid/v4';
 
 interface MeasureData {
-	x: number;
-	y: number;
+	x: number; // x position of view within its parent
+	y: number; // y position of view within its parent
 	width: number;
 	height: number;
-	pageX: number;
-	pageY: number;
+	pageX: number; // x position of view within screen
+	pageY: number; // y position of view within screen
 }
 
 interface DraxProtocolProps {
