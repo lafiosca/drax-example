@@ -1,14 +1,14 @@
 import React, {
 	FunctionComponent,
 	PropsWithChildren,
+	ReactElement,
 	createContext,
-	useReducer,
 	useCallback,
 	useContext,
 	useEffect,
-	useState,
+	useReducer,
 	useRef,
-	ReactElement,
+	useState,
 } from 'react';
 import {
 	ViewProps,
@@ -34,23 +34,52 @@ interface Measurements {
 }
 
 interface DraxProtocol {
+	/** Called in the dragged view when a drag action begins */
 	onDragStart?: () => void;
+
+	/** Called in the dragged view repeatedly while dragged, not over any receiver */
 	onDrag?: () => void;
-	onDragEnter?: (payload: any) => void;
-	onDragOver?: (payload: any) => void;
-	onDragExit?: (payload: any) => void;
+
+	/** Called in the dragged view when dragged onto a new receiver */
+	onDragEnter?: (receiverPayload: any) => void;
+
+	/** Called in the dragged view repeatedly while dragged over a receiver */
+	onDragOver?: (receiverPayload: any) => void;
+
+	/** Called in the dragged view when dragged off of a receiver */
+	onDragExit?: (receiverPayload: any) => void;
+
+	/** Called in the dragged view when drag ends or is cancelled, not over any receiver */
 	onDragEnd?: () => void;
-	onDragDrop?: (payload: any) => void;
 
-	onReceiveDragEnter?: (payload: any) => void;
-	onReceiveDragOver?: (payload: any) => void;
-	onReceiveDragExit?: (payload: any) => void;
-	onReceiveDragDrop?: (payload: any) => void;
+	/** Called in the dragged view when drag ends over a receiver */
+	onDragDrop?: (receiverPayload: any) => void;
 
+	/** Called in the receiver view when an item is dragged onto it */
+	onReceiveDragEnter?: (dragPayload: any) => void;
+
+	/** Called in the receiver view repeatedly while an item is dragged over it */
+	onReceiveDragOver?: (dragPayload: any) => void;
+
+	/** Called in the receiver view when item is dragged off of it or drag is cancelled */
+	onReceiveDragExit?: (dragPayload: any) => void;
+
+	/** Called in the receiver view when drag ends over it */
+	onReceiveDragDrop?: (dragPayload: any) => void;
+
+	/** Convenience prop to provide the same value for dragPayload and receiverPayload */
+	payload?: any;
+
+	/** Payload that will be delivered to receivers when this view is dragged */
 	dragPayload?: any;
+
+	/** Payload that will be delievered to dragged views when this view receives them */
 	receiverPayload?: any;
 
+	/** Whether the view can be dragged */
 	draggable: boolean;
+
+	/** Whether the view can receive drags */
 	receptive: boolean;
 }
 
@@ -62,7 +91,7 @@ enum DraxViewDragState {
 	Released,
 }
 
-enum DraxViewReceivingState {
+enum DraxViewReceiverState {
 	Inactive,
 	Receiving,
 }
@@ -71,8 +100,8 @@ interface DraxActivity {
 	dragState: DraxViewDragState;
 	dragOffset: Animated.ValueXY;
 	draggingOverReceiverPayload?: any;
-	receivingState: DraxViewReceivingState;
-	receivingOffset: Animated.ValueXY;
+	receiverState: DraxViewReceiverState;
+	receiverOffset: Animated.ValueXY;
 	receivingDragPayload?: any;
 }
 
@@ -80,8 +109,8 @@ const createInitialActivity = (): DraxActivity => ({
 	dragState: DraxViewDragState.Inactive,
 	dragOffset: new Animated.ValueXY({ x: 0, y: 0 }),
 	draggingOverReceiverPayload: undefined,
-	receivingState: DraxViewReceivingState.Inactive,
-	receivingOffset: new Animated.ValueXY({ x: 0, y: 0 }),
+	receiverState: DraxViewReceiverState.Inactive,
+	receiverOffset: new Animated.ValueXY({ x: 0, y: 0 }),
 	receivingDragPayload: undefined,
 });
 
@@ -103,17 +132,21 @@ const initialState: DraxState = {
 	viewDataById: {},
 };
 
-const getViewById = (state: DraxState, id: string | undefined): DraxStateViewData | undefined => (
+const selectViewById = (state: DraxState, id: string | undefined): DraxStateViewData | undefined => (
 	(id && state.viewIds.includes(id)) ? state.viewDataById[id] : undefined
 );
 
 interface RegisterViewPayload {
 	id: string;
-	protocol: DraxProtocolProps;
 }
 
 interface UnregisterViewPayload {
 	id: string;
+}
+
+interface UpdateViewProtocolPayload {
+	id: string;
+	protocol: DraxProtocolProps;
 }
 
 interface MeasureViewPayload {
@@ -133,6 +166,7 @@ interface UpdateActivitiesPayload {
 const actions = {
 	registerView: createAction('registerView')<RegisterViewPayload>(),
 	unregisterView: createAction('unregisterView')<UnregisterViewPayload>(),
+	updateViewProtocol: createAction('updateViewProtocol')<UpdateViewProtocolPayload>(),
 	measureView: createAction('measureView')<MeasureViewPayload>(),
 	updateActivity: createAction('updateActivity')<UpdateActivityPayload>(),
 	updateActivities: createAction('updateActivities')<UpdateActivitiesPayload>(),
@@ -143,9 +177,52 @@ type DraxAction = ActionType<typeof actions>;
 const reducer = (state: DraxState, action: DraxAction): DraxState => {
 	switch (action.type) {
 		case getType(actions.registerView): {
+			const { id } = action.payload;
+
+			// Make sure not to duplicate registered view id.
+			const viewIds = state.viewIds.indexOf(id) < 0 ? [...state.viewIds, id] : state.viewIds;
+
+			// Make sure not to overwrite existing view data.
+			const existingData = selectViewById(state, id);
+
+			return {
+				...state,
+				viewIds,
+				viewDataById: {
+					...state.viewDataById,
+					...(existingData
+						? {}
+						: {
+							[id]: {
+								protocol: {
+									draggable: false,
+									receptive: false,
+								},
+								activity: createInitialActivity(),
+							},
+						}
+					),
+				},
+			};
+		}
+		case getType(actions.unregisterView): {
+			const { id } = action.payload;
+			const { [id]: removed, ...viewDataById } = state.viewDataById;
+			return {
+				...state,
+				viewDataById,
+				viewIds: state.viewIds.filter((thisId) => thisId !== id),
+			};
+		}
+		case getType(actions.updateViewProtocol): {
 			const { id, protocol: protocolProps } = action.payload;
 
-			// Determine values for draggable/receptive if not explicitly provided.
+			const existingData = selectViewById(state, id);
+			if (!existingData) {
+				return state;
+			}
+
+			// Determine required and coalesced values if not explicitly provided.
 			const protocol: DraxProtocol = {
 				...protocolProps,
 				draggable: protocolProps.draggable ?? (!!protocolProps.dragPayload
@@ -161,61 +238,43 @@ const reducer = (state: DraxState, action: DraxAction): DraxState => {
 					|| !!protocolProps.onReceiveDragExit
 					|| !!protocolProps.onReceiveDragOver
 					|| !!protocolProps.onReceiveDragDrop),
+				dragPayload: protocolProps.dragPayload ?? protocolProps.payload,
+				receiverPayload: protocolProps.receiverPayload ?? protocolProps.payload,
 			};
-
-			/*
-			 * If view has already been registered, update the protocol slice without
-			 * affecting activity and measurements; otherwise, initialize fresh view data.
-			 */
-			const existingData = getViewById(state, id);
-			const newViewData: DraxStateViewData = (existingData
-				? { ...existingData, protocol }
-				: { protocol, activity: createInitialActivity() }
-			);
-
-			// Make sure not to duplicate registered view id.
-			const viewIds = state.viewIds.indexOf(id) < 0 ? [...state.viewIds, id] : state.viewIds;
 
 			return {
 				...state,
-				viewIds,
 				viewDataById: {
 					...state.viewDataById,
-					[id]: newViewData,
+					[id]: {
+						...existingData,
+						protocol,
+					},
 				},
-			};
-		}
-		case getType(actions.unregisterView): {
-			const { id } = action.payload;
-			const { [id]: removed, ...viewDataById } = state.viewDataById;
-			return {
-				...state,
-				viewDataById,
-				viewIds: state.viewIds.filter((thisId) => thisId !== id),
 			};
 		}
 		case getType(actions.measureView): {
 			const { id, measurements } = action.payload;
-			const existingData = getViewById(state, id);
+
+			const existingData = selectViewById(state, id);
+			if (!existingData) {
+				return state;
+			}
+
 			return {
 				...state,
 				viewDataById: {
 					...state.viewDataById,
-					...(existingData
-						? {
-							[id]: {
-								...existingData,
-								measurements,
-							},
-						}
-						: {}
-					),
+					[id]: {
+						...existingData,
+						measurements,
+					},
 				},
 			};
 		}
 		case getType(actions.updateActivity): {
 			const { id, activity } = action.payload;
-			const existingData = getViewById(state, id);
+			const existingData = selectViewById(state, id);
 			return {
 				...state,
 				viewDataById: {
@@ -239,7 +298,7 @@ const reducer = (state: DraxState, action: DraxAction): DraxState => {
 			const { activities } = action.payload;
 			const viewDataById = activities.reduce(
 				(prevViewDataById, { id, activity }) => {
-					const existingData = getViewById(state, id);
+					const existingData = selectViewById(state, id);
 					return {
 						...prevViewDataById,
 						...(existingData
@@ -269,9 +328,10 @@ const reducer = (state: DraxState, action: DraxAction): DraxState => {
 };
 
 interface DraxContextValue {
-	state: DraxState;
+	getViewDataById: (id: string) => DraxStateViewData | undefined;
 	registerView: (payload: RegisterViewPayload) => void;
 	unregisterView: (payload: UnregisterViewPayload) => void;
+	updateViewProtocol: (payload: UpdateViewProtocolPayload) => void;
 	measureView: (payload: MeasureViewPayload) => void;
 	handleGestureStateChange: (id: string, event: PanGestureHandlerStateChangeEvent) => void;
 	handleGestureEvent: (id: string, event: PanGestureHandlerGestureEvent) => void;
@@ -287,33 +347,14 @@ export interface DraxProviderProps {
 export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = false, children }) => {
 	const [state, dispatch] = useReducer(reducer, initialState);
 	const draggedIdRef = useRef<string | undefined>(undefined);
+	const draggedDragOffsetRef = useRef<Animated.ValueXY | undefined>(undefined);
 	const receiverIdRef = useRef<string | undefined>(undefined);
-	const registerView = useCallback(
-		(payload: RegisterViewPayload) => {
-			if (debug) {
-				console.log(`Dispatching registerView(${JSON.stringify(payload, null, 2)})`);
-			}
-			dispatch(actions.registerView(payload));
-		},
-		[dispatch, debug],
-	);
-	const unregisterView = useCallback(
-		(payload: UnregisterViewPayload) => {
-			if (debug) {
-				console.log(`Dispatching unregisterView(${JSON.stringify(payload, null, 2)})`);
-			}
-			dispatch(actions.unregisterView(payload));
-		},
-		[dispatch, debug],
-	);
-	const measureView = useCallback(
-		(payload: MeasureViewPayload) => {
-			if (debug) {
-				console.log(`Dispatching measureView(${JSON.stringify(payload, null, 2)})`);
-			}
-			dispatch(actions.measureView(payload));
-		},
-		[dispatch, debug],
+	const receiverReceiverOffsetRef = useRef<Animated.ValueXY | undefined>(undefined);
+	const getViewDataById = useCallback(
+		(id: string | undefined) => (
+			(id && state.viewIds.includes(id)) ? state.viewDataById[id] : undefined
+		),
+		[state.viewIds, state.viewDataById],
 	);
 	const updateActivity = useCallback(
 		(payload: UpdateActivityPayload) => {
@@ -333,6 +374,131 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		},
 		[dispatch, debug],
 	);
+	const resetDragged = useCallback(
+		() => {
+			const id = draggedIdRef.current;
+			if (id) {
+				if (debug) {
+					console.log('Resetting dragged view');
+				}
+				const draggedDragOffset = draggedDragOffsetRef.current;
+				draggedIdRef.current = undefined;
+				draggedDragOffsetRef.current = undefined;
+				updateActivity({
+					id,
+					activity: {
+						dragState: draggedDragOffset
+							? DraxViewDragState.Released
+							: DraxViewDragState.Inactive,
+						draggingOverReceiverPayload: undefined,
+					},
+				});
+				if (draggedDragOffset) {
+					Animated.timing(
+						draggedDragOffset,
+						{ toValue: { x: 0, y: 0 } },
+					).start(({ finished }) => {
+						if (finished) {
+							updateActivity({
+								id,
+								activity: { dragState: DraxViewDragState.Inactive },
+							});
+						}
+					});
+				}
+			} else if (debug) {
+				console.log('No dragged view to reset');
+			}
+		},
+		[updateActivity, debug],
+	);
+	const resetReceiver = useCallback(
+		() => {
+			const id = receiverIdRef.current;
+			if (id) {
+				if (debug) {
+					console.log('Resetting receiver');
+				}
+				const receiverReceiverOffset = receiverReceiverOffsetRef.current;
+				receiverIdRef.current = undefined;
+				receiverReceiverOffsetRef.current = undefined;
+				updateActivity({
+					id,
+					activity: {
+						receiverState: DraxViewReceiverState.Inactive,
+						receivingDragPayload: undefined,
+					},
+				});
+				if (receiverReceiverOffset) {
+					Animated.timing(
+						receiverReceiverOffset,
+						{ toValue: { x: 0, y: 0 } },
+					);
+				}
+			} else if (debug) {
+				console.log('No receiver to reset');
+			}
+		},
+		[updateActivity, debug],
+	);
+	const registerView = useCallback(
+		(payload: RegisterViewPayload) => {
+			if (debug) {
+				console.log(`Dispatching registerView(${JSON.stringify(payload, null, 2)})`);
+			}
+			dispatch(actions.registerView(payload));
+		},
+		[dispatch, debug],
+	);
+	const unregisterView = useCallback(
+		(payload: UnregisterViewPayload) => {
+			if (debug) {
+				console.log(`Dispatching unregisterView(${JSON.stringify(payload, null, 2)})`);
+			}
+			dispatch(actions.unregisterView(payload));
+			const { id } = payload;
+			if (draggedIdRef.current === id) {
+				if (debug) {
+					console.log('Unsetting dragged view id');
+				}
+				draggedIdRef.current = undefined;
+				draggedDragOffsetRef.current = undefined;
+				resetReceiver();
+			}
+			if (receiverIdRef.current === id) {
+				if (debug) {
+					console.log('Unsetting receiver view id');
+				}
+				receiverIdRef.current = undefined;
+				receiverReceiverOffsetRef.current = undefined;
+				resetDragged();
+			}
+		},
+		[
+			dispatch,
+			resetReceiver,
+			resetDragged,
+			debug,
+		],
+	);
+	const updateViewProtocol = useCallback(
+		(payload: UpdateViewProtocolPayload) => {
+			if (debug) {
+				console.log(`Dispatching updateViewProtocol(${JSON.stringify(payload, null, 2)})`);
+			}
+			dispatch(actions.updateViewProtocol(payload));
+		},
+		[dispatch, debug],
+	);
+	const measureView = useCallback(
+		(payload: MeasureViewPayload) => {
+			if (debug) {
+				console.log(`Dispatching measureView(${JSON.stringify(payload, null, 2)})`);
+			}
+			dispatch(actions.measureView(payload));
+		},
+		[dispatch, debug],
+	);
 	const findReceiver = useCallback(
 		(screenX: number, screenY: number, excludeId?: string) => {
 			/*
@@ -342,7 +508,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			for (let i = state.viewIds.length - 1; i >= 0; i -= 1) {
 				const targetId = state.viewIds[i];
 				if (targetId !== excludeId) { // Don't consider the excluded view.
-					const target = getViewById(state, targetId);
+					const target = getViewDataById(targetId);
 					if (target?.protocol.receptive) { // Only consider receptive views.
 						const { measurements: targetMeasurements } = target;
 						if (targetMeasurements) { // Only consider views for which we have measure data.
@@ -362,7 +528,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			}
 			return undefined;
 		},
-		[state],
+		[state.viewIds, getViewDataById],
 	);
 	const handleGestureStateChange = useCallback(
 		(id: string, { nativeEvent }: PanGestureHandlerStateChangeEvent) => {
@@ -385,11 +551,13 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			if (draggedId) {
 				if (draggedId !== id) {
 					// Case 1: We're already dragging a different view.
+
 					if (debug) {
 						console.log(`Ignoring gesture state change because another view is being dragged: ${draggedId}`);
 					}
 				} else {
 					// Case 2: This is the view we're already dragging.
+
 					let endDrag = false;
 					let doDrop = false;
 
@@ -437,84 +605,67 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 
 					if (endDrag) {
 						// Get data for dragged and receiver views (if any)
-						const draggedData = getViewById(state, draggedId);
-						const receiverData = getViewById(state, receiverIdRef.current);
+						const draggedData = getViewDataById(draggedId);
+						const receiverData = getViewDataById(receiverIdRef.current);
 
-						// Clear existing dragged and receiver views
-						draggedIdRef.current = undefined;
-						receiverIdRef.current = undefined;
+						// Reset dragged and receiver states
+						resetDragged();
+						resetReceiver();
 
-						if (!draggedData) {
-							if (debug) {
-								console.warn(`Failed to process end of drag for view id ${id} because view data was not found`);
-							}
+						if (doDrop && receiverData) {
+							draggedData?.protocol.onDragDrop?.(receiverData.protocol.receiverPayload);
+							receiverData.protocol.onReceiveDragDrop?.(draggedData?.protocol.dragPayload);
 						} else {
-							if (doDrop && receiverData) {
-								draggedData.protocol.onDragDrop?.(receiverData.protocol.receiverPayload);
-								receiverData.protocol.onReceiveDragDrop?.(draggedData.protocol.dragPayload);
-							} else {
-								draggedData.protocol.onDragEnd?.();
-								receiverData?.protocol.onReceiveDragExit?.(draggedData.protocol.dragPayload);
-							}
-							updateActivity({
-								id,
-								activity: {
-									dragState: DraxViewDragState.Released,
-									draggingOverReceiverPayload: undefined,
-								},
-							});
-							Animated.timing(
-								draggedData.activity.dragOffset,
-								{
-									toValue: { x: 0, y: 0 },
-								},
-							).start(({ finished }) => {
-								if (finished) {
-									updateActivity({
-										id,
-										activity: {
-											dragState: DraxViewDragState.Inactive,
-										},
-									});
-								}
-							});
+							draggedData?.protocol.onDragEnd?.();
+							receiverData?.protocol.onReceiveDragExit?.(draggedData?.protocol.dragPayload);
 						}
 					}
 				}
 			} else {
 				// Case 3: We're not already dragging a view.
-				const draggedData = getViewById(state, id);
-				let startDrag = false;
 
-				switch (nativeEvent.state) {
-					case State.ACTIVE:
-						if (debug) {
-							console.log(`Start dragging view id ${id}`);
-						}
-						startDrag = true;
-						break;
-					case State.BEGAN:
-						// Do nothing until the gesture becomes active.
-						break;
-					case State.CANCELLED:
-					case State.FAILED:
-					case State.END:
-						// Do nothing because we weren't tracking this gesture.
-						break;
-					default:
-						if (debug) {
-							console.warn(`Unrecognized gesture state ${nativeEvent.state} for non-dragged view`);
-						}
-						break;
-				}
+				const draggedData = getViewDataById(id);
 
-				if (startDrag) {
-					if (!draggedData) {
-						if (debug) {
-							console.warn(`Failed to start drag for view id ${id} because view data was not found`);
-						}
-					} else {
+				if (!draggedData) {
+					if (debug) {
+						console.log(`Ignoring gesture for view id ${id} because view data was not found`);
+					}
+				} else if (!draggedData.measurements) {
+					if (debug) {
+						console.log(`Ignoring gesture for view id ${id} because it is not yet measured`);
+					}
+				} else if (!draggedData.protocol.draggable) {
+					if (debug) {
+						console.log(`Ignoring gesture for undraggable view id ${id}`);
+					}
+				} else {
+					let startDrag = false;
+
+					switch (nativeEvent.state) {
+						case State.ACTIVE:
+							if (debug) {
+								console.log(`Start dragging view id ${id}`);
+							}
+							startDrag = true;
+							break;
+						case State.BEGAN:
+							// Do nothing until the gesture becomes active.
+							break;
+						case State.CANCELLED:
+						case State.FAILED:
+						case State.END:
+							// Do nothing because we weren't tracking this gesture.
+							break;
+						default:
+							if (debug) {
+								console.warn(`Unrecognized gesture state ${nativeEvent.state} for non-dragged view id ${id}`);
+							}
+							break;
+					}
+
+					if (startDrag) {
 						draggedIdRef.current = id;
+						draggedDragOffsetRef.current = draggedData.activity.dragOffset;
 						draggedData.protocol.onDragStart?.();
 						updateActivity({
 							id,
@@ -533,7 +684,13 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 				}
 			}
 		},
-		[updateActivity, draggedIdRef, debug],
+		[
+			getViewDataById,
+			resetDragged,
+			resetReceiver,
+			updateActivity,
+			debug,
+		],
 	);
 	const handleGestureEvent = useCallback(
 		(id: string, { nativeEvent }: PanGestureHandlerGestureEvent) => {
@@ -542,29 +699,50 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			}
 
 			const draggedId = draggedIdRef.current;
-			if (!draggedId || draggedId !== id) {
-				// This is not the view being dragged. We don't support multiple simultaneous drags.
+			if (!draggedId) {
+				// We're not tracking any gesture yet.
+				if (debug) {
+					console.log('Ignoring gesture event because we have not initialized a drag');
+				}
+				return;
+			}
+			if (draggedId !== id) {
+				// This is not a gesture we're tracking. We don't support multiple simultaneous drags.
 				if (debug) {
 					console.log('Ignoring gesture event because this is not the view being dragged');
 				}
 				return;
 			}
 
-			const draggedData = getViewById(state, draggedId);
-			const draggedMeasurements = draggedData?.measurements;
-			if (!draggedMeasurements) {
-				if (debug) {
-					console.log(`Received drag event for unmeasured viewId ${draggedId}`);
-				}
+			const draggedData = getViewDataById(draggedId);
+			if (!draggedData) {
+				// The drag we're tracking is for a view that's no longer registered. Reset.
+				draggedIdRef.current = undefined;
+				draggedDragOffsetRef.current = undefined;
+				resetReceiver();
 				return;
 			}
+
+			// We cannot be in a dragging state without measurements. (See handleGestureStateChange above.)
+			const draggedMeasurements = draggedData.measurements!;
 
 			// Determine the x and y coordinates of the drag relative to the screen.
 			const dragX = draggedMeasurements.pageX + nativeEvent.translationX + nativeEvent.x;
 			const dragY = draggedMeasurements.pageY + nativeEvent.translationY + nativeEvent.y;
 
-			const newReceiver = findReceiver(dragX, dragY, draggedId);
+			const receiver = findReceiver(dragX, dragY, draggedId);
 			const oldReceiverId = receiverIdRef.current;
+
+			// Always update the drag animation offset.
+			Animated.timing(
+				draggedData.activity.dragOffset,
+				{
+					toValue: {
+						x: nativeEvent.translationX,
+						y: nativeEvent.translationY,
+					},
+				},
+			).start();
 
 			/*
 			 * Consider the following cases for new and old receiver ids:
@@ -575,36 +753,107 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			 * Case 5: new does not exist, old does not exist
 			 */
 
-			const draggedProtocol = draggedData?.protocol;
+			const draggedProtocol = draggedData.protocol;
+			const activities: UpdateActivityPayload[] = [];
 
-			if (newReceiver) {
-				receiverIdRef.current = newReceiver.id;
-				const newProtocol = newReceiver.data.protocol;
+			if (receiver) {
+				const { id: receiverId, data: receiverData } = receiver;
+				const receiverProtocol = receiverData.protocol;
+
+				// We cannot find a receiver without measurements. (See findReceiver.)
+				const receiverMeasurements = receiverData.measurements!;
+
+				// Update the current receiver animation offset.
+				Animated.timing(
+					receiverData.activity.receiverOffset,
+					{
+						toValue: {
+							x: dragX - receiverMeasurements.pageX,
+							y: dragY - receiverMeasurements.pageY,
+						},
+					},
+				).start();
+
+				// Prepare dragged activity update, if necessary.
+				if (draggedData.activity.draggingOverReceiverPayload !== receiverProtocol.receiverPayload) {
+					activities.push({
+						id: draggedId,
+						activity: { draggingOverReceiverPayload: receiverProtocol.receiverPayload },
+					});
+				}
+
 				if (oldReceiverId) {
-					if (newReceiver.id === oldReceiverId) {
+					if (receiverId === oldReceiverId) {
 						// Case 1: new exists, old exists, new is the same as old
-						newProtocol?.onReceiveDragOver?.(draggedProtocol?.dragPayload);
 
-						// update receiving offset
-						// update dragging offset
+						// Call the protocol event callbacks for dragging over the receiver.
+						draggedProtocol.onDragOver?.(receiverProtocol.receiverPayload);
+						receiverProtocol.onReceiveDragOver?.(draggedProtocol.dragPayload);
 
-						// update receiving drag payload
-						// update dragging receiver payload
+						// Prepare receiver activity update, if necessary
+						if (receiverData.activity.receivingDragPayload !== draggedProtocol.dragPayload) {
+							activities.push({
+								id: receiverId,
+								activity: { receivingDragPayload: draggedProtocol.dragPayload },
+							});
+						}
 					} else {
 						// Case 2: new exists, old exists, new is different from old
-						const oldProtocol = getViewById(state, oldReceiverId)?.protocol;
-						oldProtocol?.onReceiveDragExit?.(draggedProtocol?.dragPayload);
+
+						// Reset the old receiver and set the new one.
+						resetReceiver();
+						receiverIdRef.current = receiverId;
+						receiverReceiverOffsetRef.current = receiverData.activity.receiverOffset;
+
+						// Call the protocol event callbacks for exiting the old receiver...
+						const oldReceiverProtocol = getViewDataById(oldReceiverId)?.protocol;
+						draggedProtocol.onDragExit?.(oldReceiverProtocol?.receiverPayload);
+						oldReceiverProtocol?.onReceiveDragExit?.(draggedProtocol.dragPayload);
+
+						// ...and entering the new receiver.
+						draggedProtocol.onDragEnter?.(receiverProtocol?.receiverPayload);
+						receiverProtocol.onReceiveDragEnter?.(draggedProtocol.dragPayload);
 					}
 				} else {
 					// Case 3: new exists, old does not exist
+
+					// Set the new receiver
+					receiverIdRef.current = receiverId;
+					receiverReceiverOffsetRef.current = receiverData.activity.receiverOffset;
+
+					// Call the protocol event callbacks for entering the new receiver.
+					draggedProtocol.onDragEnter?.(receiverProtocol?.receiverPayload);
+					receiverProtocol.onReceiveDragEnter?.(draggedProtocol.dragPayload);
 				}
 			} else if (oldReceiverId) {
 				// Case 4: new does not exist, old exists
+
+				// Reset the old receiver.
+				resetReceiver();
+
+				// Call the protocol event callbacks for exiting the old receiver.
+				const oldReceiverProtocol = getViewDataById(oldReceiverId)?.protocol;
+				draggedProtocol.onDragExit?.(oldReceiverProtocol?.receiverPayload);
+				oldReceiverProtocol?.onReceiveDragExit?.(draggedProtocol.dragPayload);
 			} else {
 				// Case 5: new does not exist, old does not exist
+
+				// Call the protocol event callback for dragging.
+				draggedProtocol.onDrag?.();
+			}
+
+			// If there are any updates queued, dispatch them now.
+			if (activities.length > 0) {
+				updateActivities({ activities });
 			}
 		},
-		[updateActivities, debug],
+		[
+			getViewDataById,
+			updateActivities,
+			findReceiver,
+			resetReceiver,
+			debug,
+		],
 	);
 	useEffect(() => {
 		if (debug) {
@@ -612,9 +861,10 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		}
 	});
 	const value: DraxContextValue = {
-		state,
+		getViewDataById,
 		registerView,
 		unregisterView,
+		updateViewProtocol,
 		measureView,
 		handleGestureStateChange,
 		handleGestureEvent,
@@ -653,8 +903,11 @@ export const DraxView = (
 		onReceiveDragOver,
 		onReceiveDragExit,
 		onReceiveDragDrop,
+		payload,
 		dragPayload,
 		receiverPayload,
+		draggable,
+		receptive,
 		children,
 		...props
 	}: PropsWithChildren<DraxViewProps>,
@@ -662,8 +915,10 @@ export const DraxView = (
 	const [id, setId] = useState('');
 	const ref = useRef<AnimatedViewRef>(null);
 	const {
+		// getViewDataById,
 		registerView,
 		unregisterView,
+		updateViewProtocol,
 		measureView,
 		handleGestureEvent,
 		handleGestureStateChange,
@@ -671,31 +926,43 @@ export const DraxView = (
 	useEffect(() => { setId(uuid()); }, []); // initialize id once
 	useEffect(
 		() => {
-			if (!id) {
-				return undefined;
+			if (id) {
+				registerView({ id });
+				return () => unregisterView({ id });
 			}
-			registerView({
-				id,
-				protocol: {
-					onDragStart,
-					onDrag,
-					onDragEnter,
-					onDragOver,
-					onDragExit,
-					onDragEnd,
-					onDragDrop,
-					onReceiveDragEnter,
-					onReceiveDragOver,
-					onReceiveDragExit,
-					onReceiveDragDrop,
-					dragPayload,
-					receiverPayload,
-				},
-			});
-			return () => unregisterView({ id });
+			return undefined;
+		},
+		[id, registerView, unregisterView],
+	);
+	useEffect(
+		() => {
+			if (id) {
+				updateViewProtocol({
+					id,
+					protocol: {
+						onDragStart,
+						onDrag,
+						onDragEnter,
+						onDragOver,
+						onDragExit,
+						onDragEnd,
+						onDragDrop,
+						onReceiveDragEnter,
+						onReceiveDragOver,
+						onReceiveDragExit,
+						onReceiveDragDrop,
+						payload,
+						dragPayload,
+						receiverPayload,
+						draggable,
+						receptive,
+					},
+				});
+			}
 		},
 		[
 			id,
+			updateViewProtocol,
 			onDragStart,
 			onDrag,
 			onDragEnter,
@@ -707,17 +974,20 @@ export const DraxView = (
 			onReceiveDragOver,
 			onReceiveDragExit,
 			onReceiveDragDrop,
+			payload,
 			dragPayload,
 			receiverPayload,
+			draggable,
+			receptive,
 		],
 	);
 	const onHandlerStateChange = useCallback(
 		(event: PanGestureHandlerStateChangeEvent) => handleGestureStateChange(id, event),
-		[id],
+		[id, handleGestureStateChange],
 	);
 	const onGestureEvent = useCallback(
 		(event: PanGestureHandlerGestureEvent) => handleGestureEvent(id, event),
-		[id],
+		[id, handleGestureEvent],
 	);
 	const onLayout = useCallback(
 		() => {
@@ -735,7 +1005,7 @@ export const DraxView = (
 				}));
 			}
 		},
-		[id, ref],
+		[id, measureView],
 	);
 	return (
 		<PanGestureHandler

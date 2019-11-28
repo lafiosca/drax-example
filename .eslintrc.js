@@ -5,6 +5,7 @@ module.exports = {
 		'@typescript-eslint',
 		'react',
 		'react-native',
+		'react-hooks',
 	],
 	extends: [
 		'plugin:react/recommended',
@@ -53,5 +54,7 @@ module.exports = {
 		'react/sort-comp': 0,
 		'react-native/sort-styles': 0,
 		'react-native/no-color-literals': 0,
+		'react-hooks/rules-of-hooks': 2,
+		'react-hooks/exhaustive-deps': 1,
 	},
 };

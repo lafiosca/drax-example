@@ -16,9 +16,9 @@ import { DraxProvider, DraxView } from './Drax';
 // 	'cyan',
 // ];
 
-interface DX {
-	a: number;
-	b?: string;
+interface Cargo {
+	drag?: number;
+	receiver?: number;
 }
 
 const App = () => {
@@ -27,15 +27,25 @@ const App = () => {
 		<>
 			<StatusBar barStyle="dark-content" />
 			<SafeAreaView style={styles.container}>
-				<DraxProvider debug>
+				<DraxProvider>
 					<DraxView
 						style={styles.blueBox}
-						onReceiveDragEnter={(payload: DX) => {
-							console.log(`received payload: ${JSON.stringify(payload, null, 2)}`);
-						}}
-						dragPayload={{ a: 1 }}
+						onDragStart={() => { console.log('start dragging blue'); }}
+						onDrag={() => { console.log('drag blue'); }}
+						onDragEnd={() => { console.log('stop dragging blue'); }}
+						onDragEnter={(payload: Cargo) => { console.log(`drag blue into: ${JSON.stringify(payload, null, 2)}`); }}
+						onDragOver={(payload: Cargo) => { console.log(`drag blue over: ${JSON.stringify(payload, null, 2)}`); }}
+						onDragExit={(payload: Cargo) => { console.log(`drag blue out of: ${JSON.stringify(payload, null, 2)}`); }}
+						onDragDrop={(payload: Cargo) => { console.log(`drop blue into: ${JSON.stringify(payload, null, 2)}`); }}
+						dragPayload={{ drag: 1 }}
 					/>
-					<DraxView style={styles.greenBox} />
+					<DraxView
+						style={styles.greenBox}
+						onReceiveDragDrop={(payload: Cargo) => {
+							console.log(`green received drop: ${JSON.stringify(payload, null, 2)}`);
+						}}
+						receiverPayload={{ receiver: 2 }}
+					/>
 					<Button title="+" onPress={() => setCount(count + 1)} />
 					<Button title="-" onPress={() => setCount(count - 1)} />
 				</DraxProvider>
