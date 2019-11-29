@@ -949,19 +949,6 @@ interface AnimatedViewRef { // workaround for lack of Animated.View type
 	getNode: () => View;
 }
 
-type MaybeAnimated<T> = T | Animated.Value;
-type AnimatedScalar = string | number;
-
-type AnimatedStyles<T> = {
-	[key in keyof T]: T[key] extends AnimatedScalar
-		? MaybeAnimated<T[key]>
-		: T[key] extends Array<infer U>
-			? Array<AnimatedStyles<U>>
-			: AnimatedStyles<T[key]>
-};
-
-type AnimatedViewStyle = AnimatedStyles<ViewStyle>;
-
 export const DraxView = (
 	{
 		onDragStart,
@@ -1081,27 +1068,23 @@ export const DraxView = (
 		[id, measureView],
 	);
 	const activity = getViewDataById(id)?.activity;
-	const style: StyleProp<AnimatedViewStyle>[] = [styleProp];
+	const style: any[] = [styleProp];
 	if (activity) {
 		if (activity.dragState === DraxViewDragState.Dragging) {
 			style.push({
 				borderColor: 'red',
 				borderWidth: 3,
+				opacity: 0.9,
 				zIndex: 90, // Bring it up high, but only helps if views are siblings.
-				transform: [
-					{ translateX: activity.dragOffset.x },
-					{ translateY: activity.dragOffset.y },
-				],
+				transform: activity.dragOffset.getTranslateTransform(),
 			});
 		} else if (activity.dragState === DraxViewDragState.Released) {
 			style.push({
 				borderColor: 'grey',
 				borderWidth: 3,
+				opacity: 0.9,
 				zIndex: 90, // Bring it up high, but only helps if views are siblings.
-				transform: [
-					{ translateX: activity.dragOffset.x },
-					{ translateY: activity.dragOffset.y },
-				],
+				transform: activity.dragOffset.getTranslateTransform(),
 			});
 		} else if (activity.receiverState === DraxViewReceiverState.Receiving) {
 			style.push({
