@@ -30,6 +30,7 @@ const App = () => {
 				<DraxProvider>
 					<DraxView
 						style={styles.blueBox}
+						receptive
 						onDragStart={() => { console.log('start dragging blue'); }}
 						onDrag={() => { console.log('drag blue'); }}
 						onDragEnd={() => { console.log('stop dragging blue'); }}
@@ -41,6 +42,7 @@ const App = () => {
 					/>
 					<DraxView
 						style={styles.greenBox}
+						draggable
 						onReceiveDragDrop={(payload: Cargo) => {
 							console.log(`green received drop: ${JSON.stringify(payload, null, 2)}`);
 						}}

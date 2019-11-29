@@ -14,6 +14,8 @@ import {
 	ViewProps,
 	View,
 	Animated,
+	ViewStyle,
+	StyleProp,
 } from 'react-native';
 import { createAction, ActionType, getType } from 'typesafe-actions';
 import {
@@ -24,8 +26,7 @@ import {
 } from 'react-native-gesture-handler';
 import uuid from 'uuid/v4';
 
-const dragAnimationDuration = 50;
-const dragAnimationReleaseDelay = 250;
+const dragAnimationReleaseDelay = 100;
 
 interface Measurements {
 	x: number; // x position of view within its parent
@@ -443,7 +444,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 					dragOffset,
 					{
 						toValue: { x: 0, y: 0 },
-						duration: dragAnimationDuration,
+						duration: 200,
 						delay: dragAnimationReleaseDelay,
 					},
 				).start(({ finished }) => {
@@ -703,16 +704,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 							id,
 							activity: { dragState: DraxViewDragState.Dragging },
 						});
-						Animated.timing(
-							dragOffset,
-							{
-								toValue: {
-									x: translationX,
-									y: translationY,
-								},
-								duration: dragAnimationDuration,
-							},
-						).start();
+						dragOffset.setValue({ x: translationX, y: translationY });
 					}
 				}
 			}
@@ -779,16 +771,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			const oldReceiverId = dragTracking.receiver?.id;
 
 			// Always update the drag animation offset.
-			Animated.timing(
-				draggedData.activity.dragOffset,
-				{
-					toValue: {
-						x: translationX,
-						y: translationY,
-					},
-					duration: dragAnimationDuration,
-				},
-			).start();
+			draggedData.activity.dragOffset.setValue({ x: translationX, y: translationY });
 
 			/*
 			 * Consider the following cases for new and old receiver ids:
@@ -813,16 +796,10 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 				} = receiverData.measurements!;
 
 				// Update the current receiver animation offset.
-				Animated.timing(
-					receiverData.activity.receiverOffset,
-					{
-						toValue: {
-							x: dragScreenX - receiverScreenX,
-							y: dragScreenY - receiverScreenY,
-						},
-						duration: dragAnimationDuration,
-					},
-				).start();
+				receiverData.activity.receiverOffset.setValue({
+					x: dragScreenX - receiverScreenX,
+					y: dragScreenY - receiverScreenY,
+				});
 
 				// Prepare dragged activity update, if necessary.
 				if (draggedData.activity.draggingOverReceiverPayload !== receiverProtocol.receiverPayload) {
@@ -840,7 +817,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 						draggedProtocol.onDragOver?.(receiverProtocol.receiverPayload);
 						receiverProtocol.onReceiveDragOver?.(draggedProtocol.dragPayload);
 
-						// Prepare receiver activity update, if necessary
+						// Prepare receiver activity update, if necessary.
 						if (receiverData.activity.receivingDragPayload !== draggedProtocol.dragPayload) {
 							activities.push({
 								id: receiverId,
@@ -865,6 +842,24 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 						// ...and entering the new receiver.
 						draggedProtocol.onDragEnter?.(receiverProtocol?.receiverPayload);
 						receiverProtocol.onReceiveDragEnter?.(draggedProtocol.dragPayload);
+
+						// Prepare receiver activity update for old receiver...
+						activities.push({
+							id: oldReceiverId,
+							activity: {
+								receiverState: DraxViewReceiverState.Inactive,
+								receivingDragPayload: undefined,
+							},
+						});
+
+						// ...and for new receiver.
+						activities.push({
+							id: receiverId,
+							activity: {
+								receiverState: DraxViewReceiverState.Receiving,
+								receivingDragPayload: draggedProtocol.dragPayload,
+							},
+						});
 					}
 				} else {
 					// Case 3: new exists, old does not exist
@@ -878,11 +873,20 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 					// Call the protocol event callbacks for entering the new receiver.
 					draggedProtocol.onDragEnter?.(receiverProtocol?.receiverPayload);
 					receiverProtocol.onReceiveDragEnter?.(draggedProtocol.dragPayload);
+
+					// Prepare receiver activity update for new receiver.
+					activities.push({
+						id: receiverId,
+						activity: {
+							receiverState: DraxViewReceiverState.Receiving,
+							receivingDragPayload: draggedProtocol.dragPayload,
+						},
+					});
 				}
 			} else if (oldReceiverId) {
 				// Case 4: new does not exist, old exists
 
-				// Reset the old receiver.
+				// Reset the old receiver. (Includes activity update.)
 				resetReceiver();
 
 				// Call the protocol event callbacks for exiting the old receiver.
@@ -944,6 +948,19 @@ export interface DraxViewProps extends DraxProtocolProps, ViewProps {}
 interface AnimatedViewRef { // workaround for lack of Animated.View type
 	getNode: () => View;
 }
+
+type MaybeAnimated<T> = T | Animated.Value;
+type AnimatedScalar = string | number;
+
+type AnimatedStyles<T> = {
+	[key in keyof T]: T[key] extends AnimatedScalar
+		? MaybeAnimated<T[key]>
+		: T[key] extends Array<infer U>
+			? Array<AnimatedStyles<U>>
+			: AnimatedStyles<T[key]>
+};
+
+type AnimatedViewStyle = AnimatedStyles<ViewStyle>;
 
 export const DraxView = (
 	{
@@ -1063,20 +1080,36 @@ export const DraxView = (
 		},
 		[id, measureView],
 	);
-	const viewData = getViewDataById(id);
-	const dragOffset = viewData?.activity.dragOffset;
-	const style = dragOffset
-		? [
-			styleProp,
-			{
-				opacity: 0.9,
+	const activity = getViewDataById(id)?.activity;
+	const style: StyleProp<AnimatedViewStyle>[] = [styleProp];
+	if (activity) {
+		if (activity.dragState === DraxViewDragState.Dragging) {
+			style.push({
+				borderColor: 'red',
+				borderWidth: 3,
+				zIndex: 90, // Bring it up high, but only helps if views are siblings.
 				transform: [
-					{ translateX: dragOffset.x },
-					{ translateY: dragOffset.y },
+					{ translateX: activity.dragOffset.x },
+					{ translateY: activity.dragOffset.y },
 				],
-			},
-		]
-		: styleProp;
+			});
+		} else if (activity.dragState === DraxViewDragState.Released) {
+			style.push({
+				borderColor: 'grey',
+				borderWidth: 3,
+				zIndex: 90, // Bring it up high, but only helps if views are siblings.
+				transform: [
+					{ translateX: activity.dragOffset.x },
+					{ translateY: activity.dragOffset.y },
+				],
+			});
+		} else if (activity.receiverState === DraxViewReceiverState.Receiving) {
+			style.push({
+				borderColor: 'magenta',
+				borderWidth: 3,
+			});
+		}
+	}
 	return (
 		<PanGestureHandler
 			onHandlerStateChange={onHandlerStateChange}
