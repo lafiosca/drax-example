@@ -344,12 +344,31 @@ export interface DraxProviderProps {
 	debug?: boolean;
 }
 
+interface DragTracking {
+	/** Start position of the drag in screen coordinates */
+	startPosition: {
+		x: number;
+		y: number;
+	};
+	/** Information about the dragged view */
+	dragged: {
+		/** View id of the dragged view */
+		id: string;
+		/** Animation offset of drag translation */
+		dragOffset: Animated.ValueXY;
+	};
+	/** Information about the current drag receiver, if any */
+	receiver?: {
+		/** View id of the receiver view */
+		id: string;
+		/** Animation offset of the current drag position relative to the receiver view */
+		receiverOffset: Animated.ValueXY;
+	};
+}
+
 export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = false, children }) => {
 	const [state, dispatch] = useReducer(reducer, initialState);
-	const draggedIdRef = useRef<string | undefined>(undefined);
-	const draggedDragOffsetRef = useRef<Animated.ValueXY | undefined>(undefined);
-	const receiverIdRef = useRef<string | undefined>(undefined);
-	const receiverReceiverOffsetRef = useRef<Animated.ValueXY | undefined>(undefined);
+	const dragTrackingRef = useRef<DragTracking | undefined>(undefined);
 	const getViewDataById = useCallback(
 		(id: string | undefined) => (
 			(id && state.viewIds.includes(id)) ? state.viewDataById[id] : undefined
@@ -374,72 +393,68 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		},
 		[dispatch, debug],
 	);
-	const resetDragged = useCallback(
+	const resetReceiver = useCallback(
 		() => {
-			const id = draggedIdRef.current;
-			if (id) {
-				if (debug) {
-					console.log('Resetting dragged view');
-				}
-				const draggedDragOffset = draggedDragOffsetRef.current;
-				draggedIdRef.current = undefined;
-				draggedDragOffsetRef.current = undefined;
-				updateActivity({
-					id,
-					activity: {
-						dragState: draggedDragOffset
-							? DraxViewDragState.Released
-							: DraxViewDragState.Inactive,
-						draggingOverReceiverPayload: undefined,
-					},
-				});
-				if (draggedDragOffset) {
-					Animated.timing(
-						draggedDragOffset,
-						{ toValue: { x: 0, y: 0 } },
-					).start(({ finished }) => {
-						if (finished) {
-							updateActivity({
-								id,
-								activity: { dragState: DraxViewDragState.Inactive },
-							});
-						}
+			const dragTracking = dragTrackingRef.current;
+			if (dragTracking) {
+				const { receiver } = dragTracking;
+				if (receiver) {
+					if (debug) {
+						console.log('Resetting receiver');
+					}
+					const { id, receiverOffset } = receiver;
+					dragTracking.receiver = undefined;
+					updateActivity({
+						id,
+						activity: {
+							receiverState: DraxViewReceiverState.Inactive,
+							receivingDragPayload: undefined,
+						},
 					});
+					Animated.timing(
+						receiverOffset,
+						{ toValue: { x: 0, y: 0 } },
+					);
+				} else if (debug) {
+					console.log('No receiver to reset');
 				}
-			} else if (debug) {
-				console.log('No dragged view to reset');
 			}
 		},
 		[updateActivity, debug],
 	);
-	const resetReceiver = useCallback(
+	const resetDrag = useCallback(
 		() => {
-			const id = receiverIdRef.current;
-			if (id) {
+			const dragTracking = dragTrackingRef.current;
+			if (dragTracking) {
+				resetReceiver();
+				const { dragged: { id, dragOffset } } = dragTracking;
 				if (debug) {
-					console.log('Resetting receiver');
+					console.log('Resetting dragged view');
 				}
-				const receiverReceiverOffset = receiverReceiverOffsetRef.current;
-				receiverIdRef.current = undefined;
-				receiverReceiverOffsetRef.current = undefined;
+				dragTrackingRef.current = undefined;
 				updateActivity({
 					id,
 					activity: {
-						receiverState: DraxViewReceiverState.Inactive,
-						receivingDragPayload: undefined,
+						dragState: DraxViewDragState.Released,
+						draggingOverReceiverPayload: undefined,
 					},
 				});
-				if (receiverReceiverOffset) {
-					Animated.timing(
-						receiverReceiverOffset,
-						{ toValue: { x: 0, y: 0 } },
-					);
-				}
+				Animated.timing(
+					dragOffset,
+					{ toValue: { x: 0, y: 0 } },
+				).start(({ finished }) => {
+					if (finished) {
+						updateActivity({
+							id,
+							activity: { dragState: DraxViewDragState.Inactive },
+						});
+					}
+				});
 			} else if (debug) {
-				console.log('No receiver to reset');
+				console.log('No dragged view to reset');
 			}
 		},
-		[updateActivity, debug],
+		[resetReceiver, updateActivity, debug],
 	);
 	const registerView = useCallback(
 		(payload: RegisterViewPayload) => {
@@ -457,27 +472,16 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			}
 			dispatch(actions.unregisterView(payload));
 			const { id } = payload;
-			if (draggedIdRef.current === id) {
-				if (debug) {
-					console.log('Unsetting dragged view id');
-				}
-				draggedIdRef.current = undefined;
-				draggedDragOffsetRef.current = undefined;
+			if (dragTrackingRef.current?.dragged.id === id) {
+				resetDrag();
+			} else if (dragTrackingRef.current?.receiver?.id === id) {
 				resetReceiver();
-			}
-			if (receiverIdRef.current === id) {
-				if (debug) {
-					console.log('Unsetting receiver view id');
-				}
-				receiverIdRef.current = undefined;
-				receiverReceiverOffsetRef.current = undefined;
-				resetDragged();
 			}
 		},
 		[
 			dispatch,
 			resetReceiver,
-			resetDragged,
+			resetDrag,
 			debug,
 		],
 	);
@@ -541,14 +545,15 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			 * https://github.com/kmagiera/react-native-gesture-handler/blob/master/docs/state.md
 			 */
 
-			const draggedId = draggedIdRef.current;
+			const dragTracking = dragTrackingRef.current;
 
 			/*
 			 * Case 1: We're already dragging a different view.
 			 * Case 2: This is the view we're already dragging.
 			 * Case 3: We're not already dragging a view.
 			 */
-			if (draggedId) {
+			if (dragTracking) {
+				const draggedId = dragTracking.dragged.id;
 				if (draggedId !== id) {
 					// Case 1: We're already dragging a different view.
 
@@ -606,11 +611,10 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 					if (endDrag) {
 						// Get data for dragged and receiver views (if any)
 						const draggedData = getViewDataById(draggedId);
-						const receiverData = getViewDataById(receiverIdRef.current);
+						const receiverData = getViewDataById(dragTracking.receiver?.id);
 
-						// Reset dragged and receiver states
-						resetDragged();
-						resetReceiver();
+						// Reset drag
+						resetDrag();
 
 						if (doDrop && receiverData) {
 							draggedData?.protocol.onDragDrop?.(receiverData.protocol.receiverPayload);
@@ -643,9 +647,6 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 
 					switch (nativeEvent.state) {
 						case State.ACTIVE:
-							if (debug) {
-								console.log(`Start dragging view id ${id}`);
-							}
 							startDrag = true;
 							break;
 						case State.BEGAN:
@@ -664,19 +665,46 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 					}
 
 					if (startDrag) {
-						draggedIdRef.current = id;
-						draggedDragOffsetRef.current = draggedData.activity.dragOffset;
+						const { pageX, pageY } = draggedData.measurements;
+						const {
+							x: grabX, // x position of touch relative to dragged view
+							y: grabY, // y position of touch relative to dragged view
+							translationX, // x difference of current touch from initial touch
+							translationY, // y difference of current touch from initial touch
+						} = nativeEvent;
+						/*
+						 * To determine drag start position in screen coordinates, we add:
+						 *   screen coordinates of dragged view
+						 *   + relative coordinates of touch within view
+						 *
+						 * (Note that we might already be slightly off of this position
+						 * if the translation values are non-zero. That's ok because this
+						 * represents the initial touch point.)
+						 */
+						const startPosition = {
+							x: pageX + grabX,
+							y: pageY + grabY,
+						};
+						const { dragOffset } = draggedData.activity;
+						dragTrackingRef.current = {
+							startPosition,
+							dragged: { id, dragOffset },
+							// No receiver yet
+						};
+						if (debug) {
+							console.log(`Start dragging view id ${id} at screen position (${startPosition.x}, ${startPosition.y})`);
+						}
 						draggedData.protocol.onDragStart?.();
 						updateActivity({
 							id,
 							activity: { dragState: DraxViewDragState.Dragging },
 						});
 						Animated.timing(
-							draggedData.activity.dragOffset,
+							dragOffset,
 							{
 								toValue: {
-									x: nativeEvent.translationX,
-									y: nativeEvent.translationY,
+									x: translationX,
+									y: translationY,
 								},
 							},
 						).start();
@@ -686,8 +714,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		},
 		[
 			getViewDataById,
-			resetDragged,
-			resetReceiver,
+			resetDrag,
 			updateActivity,
 			debug,
 		],
@@ -698,14 +725,16 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 				console.log(`handleGestureEvent(${id}, ${JSON.stringify(nativeEvent, null, 2)})`);
 			}
 
-			const draggedId = draggedIdRef.current;
-			if (!draggedId) {
+			const dragTracking = dragTrackingRef.current;
+			if (!dragTracking) {
 				// We're not tracking any gesture yet.
 				if (debug) {
 					console.log('Ignoring gesture event because we have not initialized a drag');
 				}
 				return;
 			}
+
+			const draggedId = dragTracking.dragged.id;
 			if (draggedId !== id) {
 				// This is not a gesture we're tracking. We don't support multiple simultaneous drags.
 				if (debug) {
@@ -717,29 +746,40 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			const draggedData = getViewDataById(draggedId);
 			if (!draggedData) {
 				// The drag we're tracking is for a view that's no longer registered. Reset.
-				draggedIdRef.current = undefined;
-				draggedDragOffsetRef.current = undefined;
-				resetReceiver();
+				resetDrag();
 				return;
 			}
 
 			// We cannot be in a dragging state without measurements. (See handleGestureStateChange above.)
 			const draggedMeasurements = draggedData.measurements!;
 
-			// Determine the x and y coordinates of the drag relative to the screen.
-			const dragX = draggedMeasurements.pageX + nativeEvent.translationX + nativeEvent.x;
-			const dragY = draggedMeasurements.pageY + nativeEvent.translationY + nativeEvent.y;
+			/*
+			 * To determine drag position in screen coordinates, we add:
+			 *   screen coordinates of drag start
+			 *   + translation offset of drag
+			 */
+			const { x: startX, y: startY } = dragTracking.startPosition;
+			const { translationX, translationY } = nativeEvent;
+			const dragScreenX = startX + translationX;
+			const dragScreenY = startY + translationY;
 
-			const receiver = findReceiver(dragX, dragY, draggedId);
-			const oldReceiverId = receiverIdRef.current;
+			if (true || debug) {
+				console.log(`Dragged item screen coordinates (${draggedMeasurements.pageX}, ${draggedMeasurements.pageY})`);
+				console.log(`Native event translation (${translationX}, ${translationY})`);
+				console.log(`Native event in-view touch coordinates: (${nativeEvent.x}, ${nativeEvent.y})`);
+				console.log(`Calculated drag at screen coordinates (${dragScreenX}, ${dragScreenY})\n`);
+			}
+
+			const receiver = findReceiver(dragScreenX, dragScreenY, draggedId);
+			const oldReceiverId = dragTracking.receiver?.id;
 
 			// Always update the drag animation offset.
 			Animated.timing(
 				draggedData.activity.dragOffset,
 				{
 					toValue: {
-						x: nativeEvent.translationX,
-						y: nativeEvent.translationY,
+						x: translationX,
+						y: translationY,
 					},
 				},
 			).start();
@@ -761,15 +801,18 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 				const receiverProtocol = receiverData.protocol;
 
 				// We cannot find a receiver without measurements. (See findReceiver.)
-				const receiverMeasurements = receiverData.measurements!;
+				const {
+					pageX: receiverScreenX,
+					pageY: receiverScreenY,
+				} = receiverData.measurements!;
 
 				// Update the current receiver animation offset.
 				Animated.timing(
 					receiverData.activity.receiverOffset,
 					{
 						toValue: {
-							x: dragX - receiverMeasurements.pageX,
-							y: dragY - receiverMeasurements.pageY,
+							x: dragScreenX - receiverScreenX,
+							y: dragScreenY - receiverScreenY,
 						},
 					},
 				).start();
@@ -802,8 +845,10 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 
 						// Reset the old receiver and set the new one.
 						resetReceiver();
-						receiverIdRef.current = receiverId;
-						receiverReceiverOffsetRef.current = receiverData.activity.receiverOffset;
+						dragTracking.receiver = {
+							id: receiverId,
+							receiverOffset: receiverData.activity.receiverOffset,
+						};
 
 						// Call the protocol event callbacks for exiting the old receiver...
 						const oldReceiverProtocol = getViewDataById(oldReceiverId)?.protocol;
@@ -818,8 +863,10 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 					// Case 3: new exists, old does not exist
 
 					// Set the new receiver
-					receiverIdRef.current = receiverId;
-					receiverReceiverOffsetRef.current = receiverData.activity.receiverOffset;
+					dragTracking.receiver = {
+						id: receiverId,
+						receiverOffset: receiverData.activity.receiverOffset,
+					};
 
 					// Call the protocol event callbacks for entering the new receiver.
 					draggedProtocol.onDragEnter?.(receiverProtocol?.receiverPayload);
@@ -851,6 +898,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			getViewDataById,
 			updateActivities,
 			findReceiver,
+			resetDrag,
 			resetReceiver,
 			debug,
 		],
