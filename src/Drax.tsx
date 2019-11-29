@@ -24,6 +24,9 @@ import {
 } from 'react-native-gesture-handler';
 import uuid from 'uuid/v4';
 
+const dragAnimationDuration = 50;
+const dragAnimationReleaseDelay = 250;
+
 interface Measurements {
 	x: number; // x position of view within its parent
 	y: number; // y position of view within its parent
@@ -411,10 +414,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 							receivingDragPayload: undefined,
 						},
 					});
-					Animated.timing(
-						receiverOffset,
-						{ toValue: { x: 0, y: 0 } },
-					);
+					receiverOffset.setValue({ x: 0, y: 0 });
 				} else if (debug) {
 					console.log('No receiver to reset');
 				}
@@ -441,7 +441,11 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 				});
 				Animated.timing(
 					dragOffset,
-					{ toValue: { x: 0, y: 0 } },
+					{
+						toValue: { x: 0, y: 0 },
+						duration: dragAnimationDuration,
+						delay: dragAnimationReleaseDelay,
+					},
 				).start(({ finished }) => {
 					if (finished) {
 						updateActivity({
@@ -706,6 +710,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 									x: translationX,
 									y: translationY,
 								},
+								duration: dragAnimationDuration,
 							},
 						).start();
 					}
@@ -763,7 +768,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			const dragScreenX = startX + translationX;
 			const dragScreenY = startY + translationY;
 
-			if (true || debug) {
+			if (debug) {
 				console.log(`Dragged item screen coordinates (${draggedMeasurements.pageX}, ${draggedMeasurements.pageY})`);
 				console.log(`Native event translation (${translationX}, ${translationY})`);
 				console.log(`Native event in-view touch coordinates: (${nativeEvent.x}, ${nativeEvent.y})`);
@@ -781,6 +786,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 						x: translationX,
 						y: translationY,
 					},
+					duration: dragAnimationDuration,
 				},
 			).start();
 
@@ -814,6 +820,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 							x: dragScreenX - receiverScreenX,
 							y: dragScreenY - receiverScreenY,
 						},
+						duration: dragAnimationDuration,
 					},
 				).start();
 
@@ -957,13 +964,14 @@ export const DraxView = (
 		draggable,
 		receptive,
 		children,
+		style: styleProp,
 		...props
 	}: PropsWithChildren<DraxViewProps>,
 ): ReactElement | null => {
 	const [id, setId] = useState('');
 	const ref = useRef<AnimatedViewRef>(null);
 	const {
-		// getViewDataById,
+		getViewDataById,
 		registerView,
 		unregisterView,
 		updateViewProtocol,
@@ -1055,6 +1063,20 @@ export const DraxView = (
 		},
 		[id, measureView],
 	);
+	const viewData = getViewDataById(id);
+	const dragOffset = viewData?.activity.dragOffset;
+	const style = dragOffset
+		? [
+			styleProp,
+			{
+				opacity: 0.9,
+				transform: [
+					{ translateX: dragOffset.x },
+					{ translateY: dragOffset.y },
+				],
+			},
+		]
+		: styleProp;
 	return (
 		<PanGestureHandler
 			onHandlerStateChange={onHandlerStateChange}
@@ -1063,6 +1085,7 @@ export const DraxView = (
 			<Animated.View
 				{...props}
 				ref={ref}
+				style={style}
 				onLayout={onLayout}
 			>
 				{children}
