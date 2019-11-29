@@ -14,8 +14,6 @@ import {
 	ViewProps,
 	View,
 	Animated,
-	ViewStyle,
-	StyleProp,
 } from 'react-native';
 import { createAction, ActionType, getType } from 'typesafe-actions';
 import {
@@ -26,15 +24,14 @@ import {
 } from 'react-native-gesture-handler';
 import uuid from 'uuid/v4';
 
-const dragAnimationReleaseDelay = 100;
+const defaultDragReleaseAnimationDelay = 100;
+const defaultDragReleaseAnimationDuration = 250;
 
 interface Measurements {
-	x: number; // x position of view within its parent
-	y: number; // y position of view within its parent
-	width: number;
-	height: number;
-	pageX: number; // x position of view within screen
-	pageY: number; // y position of view within screen
+	screenX: number; // x position of view within screen
+	screenY: number; // y position of view within screen
+	width: number; // width of view
+	height: number; // height of view
 }
 
 interface DraxProtocol {
@@ -70,6 +67,12 @@ interface DraxProtocol {
 
 	/** Called in the receiver view when drag ends over it */
 	onReceiveDragDrop?: (dragPayload: any) => void;
+
+	/** When releasing a drag of this view, delay in ms before it snaps back to inactive state */
+	dragReleaseAnimationDelay?: number;
+
+	/** When releasing a drag of this view, duration in ms for it to snap back to inactive state */
+	dragReleaseAnimationDuration?: number;
 
 	/** Convenience prop to provide the same value for dragPayload and receiverPayload */
 	payload?: any;
@@ -360,6 +363,10 @@ interface DragTracking {
 		id: string;
 		/** Animation offset of drag translation */
 		dragOffset: Animated.ValueXY;
+		/** Post-drag release animation delay in ms */
+		dragReleaseAnimationDelay: number;
+		/** Post-drag release animation duration in ms */
+		dragReleaseAnimationDuration: number;
 	};
 	/** Information about the current drag receiver, if any */
 	receiver?: {
@@ -428,7 +435,14 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			const dragTracking = dragTrackingRef.current;
 			if (dragTracking) {
 				resetReceiver();
-				const { dragged: { id, dragOffset } } = dragTracking;
+				const {
+					dragged: {
+						id,
+						dragOffset,
+						dragReleaseAnimationDelay,
+						dragReleaseAnimationDuration,
+					},
+				} = dragTracking;
 				if (debug) {
 					console.log('Resetting dragged view');
 				}
@@ -444,8 +458,8 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 					dragOffset,
 					{
 						toValue: { x: 0, y: 0 },
-						duration: 200,
-						delay: dragAnimationReleaseDelay,
+						delay: dragReleaseAnimationDelay,
+						duration: dragReleaseAnimationDuration,
 					},
 				).start(({ finished }) => {
 					if (finished) {
@@ -509,10 +523,10 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		[dispatch, debug],
 	);
 	const findReceiver = useCallback(
-		(screenX: number, screenY: number, excludeId?: string) => {
+		(touchScreenX: number, touchScreenY: number, excludeId?: string) => {
 			/*
 			 * Starting from the last registered view and going backwards, find
-			 * the first (latest) receptive view that contains the coordinates.
+			 * the first (latest) receptive view that contains the touch coordinates.
 			 */
 			for (let i = state.viewIds.length - 1; i >= 0; i -= 1) {
 				const targetId = state.viewIds[i];
@@ -521,10 +535,16 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 					if (target?.protocol.receptive) { // Only consider receptive views.
 						const { measurements: targetMeasurements } = target;
 						if (targetMeasurements) { // Only consider views for which we have measure data.
-							if (screenX >= targetMeasurements.pageX
-								&& screenY >= targetMeasurements.pageY
-								&& screenX <= targetMeasurements.pageX + targetMeasurements.width
-								&& screenY <= targetMeasurements.pageY + targetMeasurements.height) {
+							const {
+								screenX,
+								screenY,
+								width,
+								height,
+							} = targetMeasurements;
+							if (touchScreenX >= screenX
+								&& touchScreenY >= screenY
+								&& touchScreenX <= screenX + width
+								&& touchScreenY <= screenY + height) {
 								// Drag point is within this target.
 								return {
 									id: targetId,
@@ -670,7 +690,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 					}
 
 					if (startDrag) {
-						const { pageX, pageY } = draggedData.measurements;
+						const { screenX, screenY } = draggedData.measurements;
 						const {
 							x: grabX, // x position of touch relative to dragged view
 							y: grabY, // y position of touch relative to dragged view
@@ -687,13 +707,24 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 						 * represents the initial touch point.)
 						 */
 						const startPosition = {
-							x: pageX + grabX,
-							y: pageY + grabY,
+							x: screenX + grabX,
+							y: screenY + grabY,
 						};
-						const { dragOffset } = draggedData.activity;
+						const {
+							activity: { dragOffset },
+							protocol: {
+								dragReleaseAnimationDelay = defaultDragReleaseAnimationDelay,
+								dragReleaseAnimationDuration = defaultDragReleaseAnimationDuration,
+							},
+						} = draggedData;
 						dragTrackingRef.current = {
 							startPosition,
-							dragged: { id, dragOffset },
+							dragged: {
+								id,
+								dragOffset,
+								dragReleaseAnimationDelay,
+								dragReleaseAnimationDuration,
+							},
 							// No receiver yet
 						};
 						if (debug) {
@@ -747,9 +778,6 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 				return;
 			}
 
-			// We cannot be in a dragging state without measurements. (See handleGestureStateChange above.)
-			const draggedMeasurements = draggedData.measurements!;
-
 			/*
 			 * To determine drag position in screen coordinates, we add:
 			 *   screen coordinates of drag start
@@ -761,7 +789,9 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			const dragScreenY = startY + translationY;
 
 			if (debug) {
-				console.log(`Dragged item screen coordinates (${draggedMeasurements.pageX}, ${draggedMeasurements.pageY})`);
+				// We cannot be in a dragging state without measurements. (See handleGestureStateChange above.)
+				const draggedMeasurements = draggedData.measurements!;
+				console.log(`Dragged item screen coordinates (${draggedMeasurements.screenX}, ${draggedMeasurements.screenY})`);
 				console.log(`Native event translation (${translationX}, ${translationY})`);
 				console.log(`Native event in-view touch coordinates: (${nativeEvent.x}, ${nativeEvent.y})`);
 				console.log(`Calculated drag at screen coordinates (${dragScreenX}, ${dragScreenY})\n`);
@@ -791,8 +821,8 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 
 				// We cannot find a receiver without measurements. (See findReceiver.)
 				const {
-					pageX: receiverScreenX,
-					pageY: receiverScreenY,
+					screenX: receiverScreenX,
+					screenY: receiverScreenY,
 				} = receiverData.measurements!;
 
 				// Update the current receiver animation offset.
@@ -962,6 +992,8 @@ export const DraxView = (
 		onReceiveDragOver,
 		onReceiveDragExit,
 		onReceiveDragDrop,
+		dragReleaseAnimationDelay,
+		dragReleaseAnimationDuration,
 		payload,
 		dragPayload,
 		receiverPayload,
@@ -971,7 +1003,7 @@ export const DraxView = (
 		style: styleProp,
 		...props
 	}: PropsWithChildren<DraxViewProps>,
-): ReactElement | null => {
+): ReactElement => {
 	const [id, setId] = useState('');
 	const ref = useRef<AnimatedViewRef>(null);
 	const {
@@ -983,12 +1015,12 @@ export const DraxView = (
 		handleGestureEvent,
 		handleGestureStateChange,
 	} = useDrax();
-	useEffect(() => { setId(uuid()); }, []); // initialize id once
+	useEffect(() => { setId(uuid()); }, []); // Initialize id once.
 	useEffect(
 		() => {
 			if (id) {
-				registerView({ id });
-				return () => unregisterView({ id });
+				registerView({ id }); // Register with Drax context after we have an id.
+				return () => unregisterView({ id }); // Unregister when we unmount.
 			}
 			return undefined;
 		},
@@ -997,6 +1029,7 @@ export const DraxView = (
 	useEffect(
 		() => {
 			if (id) {
+				// Update our protocol callbacks once we have an id and whenever these props change.
 				updateViewProtocol({
 					id,
 					protocol: {
@@ -1011,6 +1044,8 @@ export const DraxView = (
 						onReceiveDragOver,
 						onReceiveDragExit,
 						onReceiveDragDrop,
+						dragReleaseAnimationDelay,
+						dragReleaseAnimationDuration,
 						payload,
 						dragPayload,
 						receiverPayload,
@@ -1034,6 +1069,8 @@ export const DraxView = (
 			onReceiveDragOver,
 			onReceiveDragExit,
 			onReceiveDragDrop,
+			dragReleaseAnimationDelay,
+			dragReleaseAnimationDuration,
 			payload,
 			dragPayload,
 			receiverPayload,
@@ -1042,28 +1079,27 @@ export const DraxView = (
 		],
 	);
 	const onHandlerStateChange = useCallback(
+		// Wire gesture state change handling into Drax context, tied to this id.
 		(event: PanGestureHandlerStateChangeEvent) => handleGestureStateChange(id, event),
 		[id, handleGestureStateChange],
 	);
 	const onGestureEvent = useCallback(
+		// Wire gesture event handling into Drax context, tied to this id.
 		(event: PanGestureHandlerGestureEvent) => handleGestureEvent(id, event),
 		[id, handleGestureEvent],
 	);
 	const onLayout = useCallback(
 		() => {
-			if (ref.current) {
-				ref.current.getNode().measure((x, y, width, height, pageX, pageY) => measureView({
-					id,
-					measurements: {
-						x,
-						y,
-						width,
-						height,
-						pageX,
-						pageY,
-					},
-				}));
-			}
+			// Every time we finish layout, measure and send our measurements to Drax context.
+			ref.current?.getNode().measure((x, y, width, height, screenX, screenY) => measureView({
+				id,
+				measurements: {
+					width,
+					height,
+					screenX,
+					screenY,
+				},
+			}));
 		},
 		[id, measureView],
 	);

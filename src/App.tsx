@@ -38,6 +38,8 @@ const App = () => {
 						onReceiveDragDrop={(payload: Cargo) => {
 							console.log(`green received drop: ${JSON.stringify(payload, null, 2)}`);
 						}}
+						dragReleaseAnimationDelay={500}
+						dragReleaseAnimationDuration={1000}
 						payload={{ boxName: 'green' }}
 					>
 						<Text>draggable and receptive</Text>
