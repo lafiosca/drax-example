@@ -1076,6 +1076,7 @@ export const DraxView = (
 				borderWidth: 3,
 				opacity: 0.9,
 				zIndex: 90, // Bring it up high, but only helps if views are siblings.
+				elevation: 90,
 				transform: activity.dragOffset.getTranslateTransform(),
 			});
 		} else if (activity.dragState === DraxViewDragState.Released) {
@@ -1084,6 +1085,7 @@ export const DraxView = (
 				borderWidth: 3,
 				opacity: 0.9,
 				zIndex: 90, // Bring it up high, but only helps if views are siblings.
+				elevation: 90,
 				transform: activity.dragOffset.getTranslateTransform(),
 			});
 		} else if (activity.receiverState === DraxViewReceiverState.Receiving) {
