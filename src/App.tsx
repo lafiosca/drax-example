@@ -1,19 +1,22 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
 	SafeAreaView,
 	StyleSheet,
 	StatusBar,
 	Text,
+	View,
 } from 'react-native';
 
 import { DraxProvider, DraxView } from './drax';
 
 interface Cargo {
-	drag?: number;
-	receiver?: number;
+	boxName?: string;
+	letter?: string;
 }
 
 const App = () => {
+	const [greenReceived, setGreenReceived] = useState<string[]>([]);
+	const [yellowReceived, setYellowReceived] = useState<string[]>([]);
 	return (
 		<>
 			<StatusBar barStyle="dark-content" />
@@ -21,14 +24,8 @@ const App = () => {
 				<DraxProvider>
 					<DraxView
 						style={styles.blueBox}
-						draggingStyle={{
-							borderWidth: 3,
-							borderColor: 'red',
-						}}
-						dragReleasedStyle={{
-							borderWidth: 3,
-							borderColor: 'grey',
-						}}
+						draggingStyle={styles.dragHighlight}
+						dragReleasedStyle={styles.dragReleaseHighlight}
 						onDragStart={() => { console.log('start dragging blue'); }}
 						onDrag={() => { console.log('drag blue'); }}
 						onDragEnd={() => { console.log('stop dragging blue'); }}
@@ -42,33 +39,56 @@ const App = () => {
 					</DraxView>
 					<DraxView
 						style={styles.greenBox}
-						draggingStyle={{
-							borderWidth: 3,
-							borderColor: 'red',
-						}}
-						dragReleasedStyle={{
-							borderWidth: 3,
-							borderColor: 'grey',
-						}}
+						draggingStyle={styles.dragHighlight}
+						dragReleasedStyle={styles.dragReleaseHighlight}
+						receivingStyle={styles.receiveHighlight}
 						draggable
 						onReceiveDragDrop={(payload: Cargo) => {
 							console.log(`green received drop: ${JSON.stringify(payload, null, 2)}`);
+							setGreenReceived([
+								...greenReceived,
+								payload.letter ?? payload.boxName ?? '?',
+							]);
 						}}
 						dragReleaseAnimationDelay={500}
 						dragReleaseAnimationDuration={1000}
 						payload={{ boxName: 'green' }}
 					>
 						<Text>draggable and receptive</Text>
+						<Text style={styles.receivedText}>{`received: ${greenReceived.join('-')}`}</Text>
 					</DraxView>
 					<DraxView
 						style={styles.yellowBox}
+						receivingStyle={styles.receiveHighlight}
 						onReceiveDragDrop={(payload: Cargo) => {
 							console.log(`yellow received drop: ${JSON.stringify(payload, null, 2)}`);
+							setYellowReceived([
+								...yellowReceived,
+								payload.letter ?? payload.boxName ?? '?',
+							]);
 						}}
-						payload={{ boxName: 'yellow' }}
+						receiverPayload={{ boxName: 'yellow' }}
 					>
 						<Text>receptive only</Text>
+						<Text style={styles.receivedText}>{`received: ${yellowReceived.join('-')}`}</Text>
 					</DraxView>
+					<View style={styles.bottomRow}>
+						<DraxView dragPayload={{ letter: 'X' }}>
+							<View style={styles.bottomBox}>
+								<Text style={styles.bottomBoxText}>X</Text>
+							</View>
+						</DraxView>
+						<DraxView dragPayload={{ letter: 'Y' }}>
+							<View style={styles.bottomBox}>
+								<Text style={styles.bottomBoxText}>Y</Text>
+							</View>
+						</DraxView>
+						<DraxView dragPayload={{ letter: 'Z' }}>
+							<View style={styles.bottomBox}>
+								<Text style={styles.bottomBoxText}>Z</Text>
+							</View>
+						</DraxView>
+					</View>
 				</DraxProvider>
 			</SafeAreaView>
 		</>
@@ -91,23 +111,44 @@ const styles = StyleSheet.create({
 		height: 200,
 		backgroundColor: '#aaffaa',
 	},
-	redBox: {
-		margin: 12,
-		width: 'auto',
-		height: 200,
-		backgroundColor: '#ffaaaa',
-	},
 	yellowBox: {
 		margin: 12,
 		width: 'auto',
 		height: 200,
 		backgroundColor: '#ffffaa',
 	},
-	cyanBox: {
+	dragHighlight: {
+		borderWidth: 3,
+		borderColor: 'red',
+	},
+	dragReleaseHighlight: {
+		borderWidth: 3,
+		borderColor: 'grey',
+	},
+	receiveHighlight: {
+		borderWidth: 3,
+		borderColor: 'magenta',
+	},
+	receivedText: {
+		marginTop: 8,
+	},
+	bottomRow: {
+		flexDirection: 'row',
+		justifyContent: 'flex-start',
+		alignItems: 'center',
+	},
+	bottomBox: {
 		margin: 12,
-		width: 'auto',
-		height: 200,
-		backgroundColor: '#aaffff',
+		width: 40,
+		height: 50,
+		borderRadius: 10,
+		backgroundColor: 'grey',
+		justifyContent: 'center',
+		alignItems: 'center',
+	},
+	bottomBoxText: {
+		fontSize: 18,
+		color: 'black',
 	},
 });
 

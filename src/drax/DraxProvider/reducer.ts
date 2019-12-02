@@ -77,6 +77,7 @@ export const reducer = (state: DraxState, action: DraxAction): DraxState => {
 			const protocol: DraxProtocol = {
 				...protocolProps,
 				draggable: protocolProps.draggable ?? (!!protocolProps.dragPayload
+					|| !!protocolProps.payload
 					|| !!protocolProps.onDrag
 					|| !!protocolProps.onDragEnd
 					|| !!protocolProps.onDragEnter
@@ -85,6 +86,7 @@ export const reducer = (state: DraxState, action: DraxAction): DraxState => {
 					|| !!protocolProps.onDragStart
 					|| !!protocolProps.onDragDrop),
 				receptive: protocolProps.receptive ?? (!!protocolProps.receiverPayload
+					|| !!protocolProps.payload
 					|| !!protocolProps.onReceiveDragEnter
 					|| !!protocolProps.onReceiveDragExit
 					|| !!protocolProps.onReceiveDragOver
