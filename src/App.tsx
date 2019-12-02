@@ -6,7 +6,7 @@ import {
 	Text,
 } from 'react-native';
 
-import { DraxProvider, DraxView } from './Drax';
+import { DraxProvider, DraxView } from './drax';
 
 interface Cargo {
 	drag?: number;
@@ -21,6 +21,14 @@ const App = () => {
 				<DraxProvider>
 					<DraxView
 						style={styles.blueBox}
+						draggingStyle={{
+							borderWidth: 3,
+							borderColor: 'red',
+						}}
+						dragReleasedStyle={{
+							borderWidth: 3,
+							borderColor: 'grey',
+						}}
 						onDragStart={() => { console.log('start dragging blue'); }}
 						onDrag={() => { console.log('drag blue'); }}
 						onDragEnd={() => { console.log('stop dragging blue'); }}
@@ -34,6 +42,14 @@ const App = () => {
 					</DraxView>
 					<DraxView
 						style={styles.greenBox}
+						draggingStyle={{
+							borderWidth: 3,
+							borderColor: 'red',
+						}}
+						dragReleasedStyle={{
+							borderWidth: 3,
+							borderColor: 'grey',
+						}}
 						draggable
 						onReceiveDragDrop={(payload: Cargo) => {
 							console.log(`green received drop: ${JSON.stringify(payload, null, 2)}`);
