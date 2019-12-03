@@ -6,8 +6,15 @@ import {
 	Text,
 	View,
 } from 'react-native';
+import {
+	LongPressGestureHandler,
+	PanGestureHandler,
+	LongPressGestureHandlerStateChangeEvent,
+	PanGestureHandlerStateChangeEvent,
+} from 'react-native-gesture-handler';
 
 import { DraxProvider, DraxView } from './drax';
+import { DraxList } from './drax/DraxList';
 
 interface Cargo {
 	boxName?: string;
@@ -22,7 +29,7 @@ const App = () => {
 			<StatusBar barStyle="dark-content" />
 			<SafeAreaView style={styles.container}>
 				<DraxProvider>
-					<DraxView
+					{/* <DraxView
 						style={styles.blueBox}
 						draggingStyle={styles.dragHighlight}
 						dragReleasedStyle={styles.dragReleaseHighlight}
@@ -88,7 +95,33 @@ const App = () => {
 								<Text style={styles.bottomBoxText}>Z</Text>
 							</View>
 						</DraxView>
-					</View>
+					</View> */}
+					{/* <View style={{ alignItems: 'center' }}>
+						<DraxView dragPayload={{ letter: 'X' }} style={{ borderWidth: 1, borderColor: 'blue' }}>
+							<View style={styles.bottomBox}>
+								<Text style={styles.bottomBoxText}>X</Text>
+							</View>
+						</DraxView>
+						<DraxView dragPayload={{ letter: 'Y' }} style={{ borderWidth: 1, borderColor: 'blue' }}>
+							<View style={styles.bottomBox}>
+								<Text style={styles.bottomBoxText}>Y</Text>
+							</View>
+						</DraxView>
+						<DraxView dragPayload={{ letter: 'Z' }} style={{ borderWidth: 1, borderColor: 'blue' }}>
+							<View style={styles.bottomBox}>
+								<Text style={styles.bottomBoxText}>Z</Text>
+							</View>
+						</DraxView>
+					</View> */}
+					<DraxList
+						data={['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q']}
+						renderItem={({ item }) => (
+							<View style={styles.bottomBox}>
+								<Text style={styles.bottomBoxText}>{item}</Text>
+							</View>
+						)}
+						keyExtractor={(item) => item}
+					/>
 				</DraxProvider>
 			</SafeAreaView>
 		</>

@@ -8,9 +8,9 @@ import React, {
 } from 'react';
 import { Animated } from 'react-native';
 import {
-	PanGestureHandlerStateChangeEvent,
-	PanGestureHandlerGestureEvent,
-	PanGestureHandler,
+	LongPressGestureHandlerStateChangeEvent,
+	LongPressGestureHandlerGestureEvent,
+	LongPressGestureHandler,
 } from 'react-native-gesture-handler';
 import uuid from 'uuid/v4';
 
@@ -21,6 +21,11 @@ import {
 	DraxDraggedViewState,
 	DraxReceiverViewState,
 } from './types';
+
+const defaultStyle = {
+	width: 'auto',
+	height: 'auto',
+};
 
 export const DraxView = (
 	{
@@ -135,12 +140,12 @@ export const DraxView = (
 	);
 	const onHandlerStateChange = useCallback(
 		// Wire gesture state change handling into Drax context, tied to this id.
-		(event: PanGestureHandlerStateChangeEvent) => handleGestureStateChange(id, event),
+		(event: LongPressGestureHandlerStateChangeEvent) => handleGestureStateChange(id, event),
 		[id, handleGestureStateChange],
 	);
 	const onGestureEvent = useCallback(
 		// Wire gesture event handling into Drax context, tied to this id.
-		(event: PanGestureHandlerGestureEvent) => handleGestureEvent(id, event),
+		(event: LongPressGestureHandlerGestureEvent) => handleGestureEvent(id, event),
 		[id, handleGestureEvent],
 	);
 	const onLayout = useCallback(
@@ -158,9 +163,16 @@ export const DraxView = (
 		},
 		[id, measureView],
 	);
+
+	// Retrieve data for building styles.
 	const activity = getViewData(id)?.activity;
 	const { dragging, receiving } = getTrackingStatus();
-	const styles: any[] = [style];
+
+	// Use `any[]` here because the view style typings don't account for animated views.
+	const styles: any[] = [
+		defaultStyle,
+		style,
+	];
 	if (activity) {
 		// First apply style overrides for drag state.
 		if (activity.dragState === DraxDraggedViewState.Dragging) {
@@ -201,7 +213,9 @@ export const DraxView = (
 		}
 	}
 	return (
-		<PanGestureHandler
+		<LongPressGestureHandler
+			maxDist={Number.MAX_SAFE_INTEGER}
+			minDurationMs={250}
 			onHandlerStateChange={onHandlerStateChange}
 			onGestureEvent={onGestureEvent}
 		>
@@ -213,6 +227,6 @@ export const DraxView = (
 			>
 				{children}
 			</Animated.View>
-		</PanGestureHandler>
+		</LongPressGestureHandler>
 	);
 };

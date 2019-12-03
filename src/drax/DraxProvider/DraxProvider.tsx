@@ -8,8 +8,8 @@ import React, {
 import { Animated } from 'react-native';
 import {
 	State,
-	PanGestureHandlerStateChangeEvent,
-	PanGestureHandlerGestureEvent,
+	LongPressGestureHandlerStateChangeEvent,
+	LongPressGestureHandlerGestureEvent,
 } from 'react-native-gesture-handler';
 
 import { reducer, initialState } from './reducer';
@@ -217,7 +217,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		[state.viewIds, getViewData],
 	);
 	const handleGestureStateChange = useCallback(
-		(id: string, { nativeEvent }: PanGestureHandlerStateChangeEvent) => {
+		(id: string, { nativeEvent }: LongPressGestureHandlerStateChangeEvent) => {
 			if (debug) {
 				console.log(`handleGestureStateChange(${id}, ${JSON.stringify(nativeEvent, null, 2)})`);
 			}
@@ -347,52 +347,68 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 					}
 
 					if (startDrag) {
-						const { screenX, screenY } = draggedData.measurements;
+						const {
+							screenX, // x position of dragged view within screen
+							screenY, // y position of dragged view within screen
+							width, // width of dragged view
+							height, // height of dragged view
+						} = draggedData.measurements;
 						const {
 							x: grabX, // x position of touch relative to dragged view
 							y: grabY, // y position of touch relative to dragged view
-							translationX, // x difference of current touch from initial touch
-							translationY, // y difference of current touch from initial touch
+							absoluteX, // x position of touch relative to parent of dragged view
+							absoluteY, // y position of touch relative to parent of dragged view
 						} = nativeEvent;
+
 						/*
-						 * To determine drag start position in screen coordinates, we add:
-						 *   screen coordinates of dragged view
-						 *   + relative coordinates of touch within view
-						 *
-						 * (Note that we might already be slightly off of this position
-						 * if the translation values are non-zero. That's ok because this
-						 * represents the initial touch point.)
+						 * First, verify that the touch is still within the dragged view.
+						 * Because we are using a LongPressGestureHandler with unlimited
+						 * distance to handle the drag, it could be out of bounds before
+						 * it even starts. (For some reason, LongPressGestureHandler does
+						 * not provide us with a BEGAN state change event.)
 						 */
-						const startPosition = {
-							x: screenX + grabX,
-							y: screenY + grabY,
-						};
-						const {
-							activity: { dragOffset },
-							protocol: {
-								dragReleaseAnimationDelay = defaultDragReleaseAnimationDelay,
-								dragReleaseAnimationDuration = defaultDragReleaseAnimationDuration,
-							},
-						} = draggedData;
-						dragTrackingRef.current = {
-							startPosition,
-							dragged: {
+						if (grabX >= 0 && grabX <= width && grabY >= 0 && grabY <= height) {
+							/*
+							* To determine drag start position in screen coordinates, we add:
+							*   screen coordinates of dragged view
+							*   + relative coordinates of touch within view
+							*/
+							const screenStartPosition = {
+								x: screenX + grabX,
+								y: screenY + grabY,
+							};
+							const parentStartPosition = {
+								x: absoluteX,
+								y: absoluteY,
+							};
+							const {
+								activity: { dragOffset },
+								protocol: {
+									dragReleaseAnimationDelay = defaultDragReleaseAnimationDelay,
+									dragReleaseAnimationDuration = defaultDragReleaseAnimationDuration,
+								},
+							} = draggedData;
+							dragTrackingRef.current = {
+								screenStartPosition,
+								parentStartPosition,
+								dragged: {
+									id,
+									dragOffset,
+									dragReleaseAnimationDelay,
+									dragReleaseAnimationDuration,
+								},
+								// No receiver yet
+							};
+							if (debug) {
+								console.log(`Start dragging view id ${id} at screen position (${screenStartPosition.x}, ${screenStartPosition.y})`);
+							}
+							draggedData.protocol.onDragStart?.();
+							updateActivity({
 								id,
-								dragOffset,
-								dragReleaseAnimationDelay,
-								dragReleaseAnimationDuration,
-							},
-							// No receiver yet
-						};
-						if (debug) {
-							console.log(`Start dragging view id ${id} at screen position (${startPosition.x}, ${startPosition.y})`);
+								activity: { dragState: DraxDraggedViewState.Dragging },
+							});
+							// TODO: remove? dragOffset.setValue({ x: 0, y: 0 });
 						}
-						draggedData.protocol.onDragStart?.();
-						updateActivity({
-							id,
-							activity: { dragState: DraxDraggedViewState.Dragging },
-						});
-						dragOffset.setValue({ x: translationX, y: translationY });
 					}
 				}
 			}
@@ -405,7 +421,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		],
 	);
 	const handleGestureEvent = useCallback(
-		(id: string, { nativeEvent }: PanGestureHandlerGestureEvent) => {
+		(id: string, { nativeEvent }: LongPressGestureHandlerGestureEvent) => {
 			if (debug) {
 				console.log(`handleGestureEvent(${id}, ${JSON.stringify(nativeEvent, null, 2)})`);
 			}
@@ -440,25 +456,30 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			 *   screen coordinates of drag start
 			 *   + translation offset of drag
 			 */
-			const { x: startX, y: startY } = dragTracking.startPosition;
-			const { translationX, translationY } = nativeEvent;
-			const dragScreenX = startX + translationX;
-			const dragScreenY = startY + translationY;
+			const { screenStartPosition, parentStartPosition } = dragTracking;
+			const translation = {
+				x: nativeEvent.absoluteX - parentStartPosition.x,
+				y: nativeEvent.absoluteY - parentStartPosition.y,
+			};
+			const dragScreen = {
+				x: screenStartPosition.x + translation.x,
+				y: screenStartPosition.y + translation.y,
+			};
 
 			if (debug) {
 				// We cannot be in a dragging state without measurements. (See handleGestureStateChange above.)
 				const draggedMeasurements = draggedData.measurements!;
 				console.log(`Dragged item screen coordinates (${draggedMeasurements.screenX}, ${draggedMeasurements.screenY})`);
-				console.log(`Native event translation (${translationX}, ${translationY})`);
 				console.log(`Native event in-view touch coordinates: (${nativeEvent.x}, ${nativeEvent.y})`);
-				console.log(`Calculated drag at screen coordinates (${dragScreenX}, ${dragScreenY})\n`);
+				console.log(`Drag translation (${translation.x}, ${translation.y})`);
+				console.log(`Drag at screen coordinates (${dragScreen.x}, ${dragScreen.y})\n`);
 			}
 
-			const receiver = findReceiver(dragScreenX, dragScreenY, draggedId);
+			const receiver = findReceiver(dragScreen.x, dragScreen.y, draggedId);
 			const oldReceiverId = dragTracking.receiver?.id;
 
 			// Always update the drag animation offset.
-			draggedData.activity.dragOffset.setValue({ x: translationX, y: translationY });
+			draggedData.activity.dragOffset.setValue({ x: translation.x, y: translation.y });
 
 			/*
 			 * Consider the following cases for new and old receiver ids:
@@ -484,8 +505,8 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 
 				// Update the current receiver animation offset.
 				receiverData.activity.receiverOffset.setValue({
-					x: dragScreenX - receiverScreenX,
-					y: dragScreenY - receiverScreenY,
+					x: dragScreen.x - receiverScreenX,
+					y: dragScreen.y - receiverScreenY,
 				});
 
 				// Prepare dragged activity update, if necessary.

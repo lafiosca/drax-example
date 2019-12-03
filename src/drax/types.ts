@@ -2,10 +2,11 @@ import {
 	ViewProps,
 	View,
 	Animated,
+	FlatListProperties,
 } from 'react-native';
 import {
-	PanGestureHandlerGestureEvent,
-	PanGestureHandlerStateChangeEvent,
+	LongPressGestureHandlerGestureEvent,
+	LongPressGestureHandlerStateChangeEvent,
 } from 'react-native-gesture-handler';
 
 /** Measurements of a Drax view for bounds checking purposes */
@@ -172,10 +173,15 @@ export interface UpdateActivitiesPayload {
 /** Tracking information about the current drag, used internally by the Drax provider */
 export interface DraxTracking {
 	/** Start position of the drag in screen coordinates */
-	startPosition: {
+	screenStartPosition: {
 		x: number;
 		y: number;
 	};
+	/** Start position of the drag relative to parent view */
+	parentStartPosition: {
+		x: number;
+		y: number;
+	}
 	/** Information about the dragged view */
 	dragged: {
 		/** View id of the dragged view */
@@ -212,11 +218,16 @@ export interface DraxContextValue {
 	unregisterView: (payload: UnregisterViewPayload) => void;
 	updateViewProtocol: (payload: UpdateViewProtocolPayload) => void;
 	measureView: (payload: MeasureViewPayload) => void;
-	handleGestureStateChange: (id: string, event: PanGestureHandlerStateChangeEvent) => void;
-	handleGestureEvent: (id: string, event: PanGestureHandlerGestureEvent) => void;
+	handleGestureStateChange: (id: string, event: LongPressGestureHandlerStateChangeEvent) => void;
+	handleGestureEvent: (id: string, event: LongPressGestureHandlerGestureEvent) => void;
 }
 
-/** Optional properties that can be passed to a DraxProvider to modify its behavior */
+/** Type workaround for lack of Animated.View type, used in DraxView */
+export interface AnimatedViewRef {
+	getNode: () => View;
+}
+
+/** Optional props that can be passed to a DraxProvider to modify its behavior */
 export interface DraxProviderProps {
 	debug?: boolean;
 }
@@ -257,7 +268,4 @@ export interface DraxViewProps extends DraxProtocolProps, ViewProps {
 	otherDraggingWithoutReceiverStyle?: ViewProps['style'];
 }
 
-/** Type workaround for lack of Animated.View type, used in DraxView */
-export interface AnimatedViewRef {
-	getNode: () => View;
-}
+export interface DraxListProps<TItem> extends FlatListProperties<TItem> {}
