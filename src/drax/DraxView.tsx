@@ -150,16 +150,25 @@ export const DraxView = (
 	);
 	const onLayout = useCallback(
 		() => {
+			console.log('onLayout');
+			if (ref.current) {
+				console.log('measure');
+			}
 			// Every time we finish layout, measure and send our measurements to Drax context.
-			ref.current?.getNode().measure((x, y, width, height, screenX, screenY) => measureView({
-				id,
-				measurements: {
-					width,
-					height,
-					screenX,
-					screenY,
-				},
-			}));
+			ref.current?.getNode().measure((x, y, width, height, screenX, screenY) => {
+				console.log(`Measure success callback: ${x}, ${y}, ${width}, ${height}, ${screenX}, ${screenY}`);
+				if (x !== undefined) { // Don't dispatch with undefined values.
+					measureView({
+						id,
+						measurements: {
+							width,
+							height,
+							screenX,
+							screenY,
+						},
+					});
+				}
+			});
 		},
 		[id, measureView],
 	);
@@ -215,6 +224,7 @@ export const DraxView = (
 	return (
 		<LongPressGestureHandler
 			maxDist={Number.MAX_SAFE_INTEGER}
+			shouldCancelWhenOutside={false}
 			minDurationMs={250}
 			onHandlerStateChange={onHandlerStateChange}
 			onGestureEvent={onGestureEvent}
@@ -224,6 +234,7 @@ export const DraxView = (
 				ref={ref}
 				style={styles}
 				onLayout={onLayout}
+				collapsable={false}
 			>
 				{children}
 			</Animated.View>

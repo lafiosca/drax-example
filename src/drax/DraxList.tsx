@@ -31,6 +31,7 @@ export const DraxList = <T extends unknown>(
 			const { index } = info;
 			return (
 				<DraxView
+					collapsable={false}
 					payload={{ id, index }}
 					onDragDrop={(payload: any) => {
 						console.log(`Dragged ${index} onto ${payload.index}`);

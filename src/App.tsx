@@ -5,13 +5,8 @@ import {
 	StatusBar,
 	Text,
 	View,
+	ScrollView,
 } from 'react-native';
-import {
-	LongPressGestureHandler,
-	PanGestureHandler,
-	LongPressGestureHandlerStateChangeEvent,
-	PanGestureHandlerStateChangeEvent,
-} from 'react-native-gesture-handler';
 
 import { DraxProvider, DraxView } from './drax';
 import { DraxList } from './drax/DraxList';
@@ -29,73 +24,75 @@ const App = () => {
 			<StatusBar barStyle="dark-content" />
 			<SafeAreaView style={styles.container}>
 				<DraxProvider>
-					{/* <DraxView
-						style={styles.blueBox}
-						draggingStyle={styles.dragHighlight}
-						dragReleasedStyle={styles.dragReleaseHighlight}
-						onDragStart={() => { console.log('start dragging blue'); }}
-						onDrag={() => { console.log('drag blue'); }}
-						onDragEnd={() => { console.log('stop dragging blue'); }}
-						onDragEnter={(payload: Cargo) => { console.log(`drag blue into: ${JSON.stringify(payload, null, 2)}`); }}
-						onDragOver={(payload: Cargo) => { console.log(`drag blue over: ${JSON.stringify(payload, null, 2)}`); }}
-						onDragExit={(payload: Cargo) => { console.log(`drag blue out of: ${JSON.stringify(payload, null, 2)}`); }}
-						onDragDrop={(payload: Cargo) => { console.log(`drop blue into: ${JSON.stringify(payload, null, 2)}`); }}
-						dragPayload={{ boxName: 'blue' }}
-					>
-						<Text>draggable only</Text>
-					</DraxView>
-					<DraxView
-						style={styles.greenBox}
-						draggingStyle={styles.dragHighlight}
-						dragReleasedStyle={styles.dragReleaseHighlight}
-						receivingStyle={styles.receiveHighlight}
-						draggable
-						onReceiveDragDrop={(payload: Cargo) => {
-							console.log(`green received drop: ${JSON.stringify(payload, null, 2)}`);
-							setGreenReceived([
-								...greenReceived,
-								payload.letter ?? payload.boxName ?? '?',
-							]);
-						}}
-						dragReleaseAnimationDelay={500}
-						dragReleaseAnimationDuration={1000}
-						payload={{ boxName: 'green' }}
-					>
-						<Text>draggable and receptive</Text>
-						<Text style={styles.receivedText}>{`received: ${greenReceived.join('-')}`}</Text>
-					</DraxView>
-					<DraxView
-						style={styles.yellowBox}
-						receivingStyle={styles.receiveHighlight}
-						onReceiveDragDrop={(payload: Cargo) => {
-							console.log(`yellow received drop: ${JSON.stringify(payload, null, 2)}`);
-							setYellowReceived([
-								...yellowReceived,
-								payload.letter ?? payload.boxName ?? '?',
-							]);
-						}}
-						receiverPayload={{ boxName: 'yellow' }}
-					>
-						<Text>receptive only</Text>
-						<Text style={styles.receivedText}>{`received: ${yellowReceived.join('-')}`}</Text>
-					</DraxView>
-					<View style={styles.bottomRow}>
-						<DraxView dragPayload={{ letter: 'X' }}>
-							<View style={styles.bottomBox}>
-								<Text style={styles.bottomBoxText}>X</Text>
-							</View>
+					<ScrollView>
+						<DraxView
+							style={styles.blueBox}
+							draggingStyle={styles.dragHighlight}
+							dragReleasedStyle={styles.dragReleaseHighlight}
+							onDragStart={() => { console.log('start dragging blue'); }}
+							onDrag={() => { console.log('drag blue'); }}
+							onDragEnd={() => { console.log('stop dragging blue'); }}
+							onDragEnter={(payload: Cargo) => { console.log(`drag blue into: ${JSON.stringify(payload, null, 2)}`); }}
+							onDragOver={(payload: Cargo) => { console.log(`drag blue over: ${JSON.stringify(payload, null, 2)}`); }}
+							onDragExit={(payload: Cargo) => { console.log(`drag blue out of: ${JSON.stringify(payload, null, 2)}`); }}
+							onDragDrop={(payload: Cargo) => { console.log(`drop blue into: ${JSON.stringify(payload, null, 2)}`); }}
+							dragPayload={{ boxName: 'blue' }}
+						>
+							<Text>draggable only</Text>
 						</DraxView>
-						<DraxView dragPayload={{ letter: 'Y' }}>
-							<View style={styles.bottomBox}>
-								<Text style={styles.bottomBoxText}>Y</Text>
-							</View>
+						<DraxView
+							style={styles.greenBox}
+							draggingStyle={styles.dragHighlight}
+							dragReleasedStyle={styles.dragReleaseHighlight}
+							receivingStyle={styles.receiveHighlight}
+							draggable
+							onReceiveDragDrop={(payload: Cargo) => {
+								console.log(`green received drop: ${JSON.stringify(payload, null, 2)}`);
+								setGreenReceived([
+									...greenReceived,
+									payload.letter ?? payload.boxName ?? '?',
+								]);
+							}}
+							dragReleaseAnimationDelay={500}
+							dragReleaseAnimationDuration={1000}
+							payload={{ boxName: 'green' }}
+						>
+							<Text>draggable and receptive</Text>
+							<Text style={styles.receivedText}>{`received: ${greenReceived.join('-')}`}</Text>
 						</DraxView>
-						<DraxView dragPayload={{ letter: 'Z' }}>
-							<View style={styles.bottomBox}>
-								<Text style={styles.bottomBoxText}>Z</Text>
-							</View>
+						<DraxView
+							style={styles.yellowBox}
+							receivingStyle={styles.receiveHighlight}
+							onReceiveDragDrop={(payload: Cargo) => {
+								console.log(`yellow received drop: ${JSON.stringify(payload, null, 2)}`);
+								setYellowReceived([
+									...yellowReceived,
+									payload.letter ?? payload.boxName ?? '?',
+								]);
+							}}
+							receiverPayload={{ boxName: 'yellow' }}
+						>
+							<Text>receptive only</Text>
+							<Text style={styles.receivedText}>{`received: ${yellowReceived.join('-')}`}</Text>
 						</DraxView>
-					</View> */}
+						<View style={styles.bottomRow}>
+							<DraxView dragPayload={{ letter: 'X' }}>
+								<View style={styles.bottomBox}>
+									<Text style={styles.bottomBoxText}>X</Text>
+								</View>
+							</DraxView>
+							<DraxView dragPayload={{ letter: 'Y' }}>
+								<View style={styles.bottomBox}>
+									<Text style={styles.bottomBoxText}>Y</Text>
+								</View>
+							</DraxView>
+							<DraxView dragPayload={{ letter: 'Z' }}>
+								<View style={styles.bottomBox}>
+									<Text style={styles.bottomBoxText}>Z</Text>
+								</View>
+							</DraxView>
+						</View>
+					</ScrollView>
 					{/* <View style={{ alignItems: 'center' }}>
 						<DraxView dragPayload={{ letter: 'X' }} style={{ borderWidth: 1, borderColor: 'blue' }}>
 							<View style={styles.bottomBox}>
@@ -113,15 +110,15 @@ const App = () => {
 							</View>
 						</DraxView>
 					</View> */}
-					<DraxList
+					{/* <DraxList
 						data={['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q']}
 						renderItem={({ item }) => (
-							<View style={styles.bottomBox}>
+							<View collapsable={false} style={styles.bottomBox}>
 								<Text style={styles.bottomBoxText}>{item}</Text>
 							</View>
 						)}
 						keyExtractor={(item) => item}
-					/>
+					/> */}
 				</DraxProvider>
 			</SafeAreaView>
 		</>
