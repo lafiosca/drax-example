@@ -252,18 +252,18 @@ const App = () => {
 					/>
 				</View> */}
 				<DraxProvider>
-					{/* <ScrollView>
+					<ScrollView>
 						<DraxView
 							style={styles.blueBox}
 							draggingStyle={styles.dragHighlight}
 							dragReleasedStyle={styles.dragReleaseHighlight}
-							onDragStart={() => { console.log('start dragging blue'); }}
-							onDrag={() => { console.log('drag blue'); }}
-							onDragEnd={() => { console.log('stop dragging blue'); }}
-							onDragEnter={(payload: Cargo) => { console.log(`drag blue into: ${JSON.stringify(payload, null, 2)}`); }}
-							onDragOver={(payload: Cargo) => { console.log(`drag blue over: ${JSON.stringify(payload, null, 2)}`); }}
-							onDragExit={(payload: Cargo) => { console.log(`drag blue out of: ${JSON.stringify(payload, null, 2)}`); }}
-							onDragDrop={(payload: Cargo) => { console.log(`drop blue into: ${JSON.stringify(payload, null, 2)}`); }}
+							onDragStart={({ screenPosition: { x, y } }) => { console.log(`start dragging blue at (${x}, ${y})`); }}
+							onDrag={({ screenPosition: { x, y } }) => { console.log(`drag blue at (${x}, ${y})`); }}
+							onDragEnd={({ screenPosition: { x, y } }) => { console.log(`stop dragging blue at (${x}, ${y})`); }}
+							onDragEnter={(data) => { console.log(`drag blue into: ${JSON.stringify(data, null, 2)}`); }}
+							onDragOver={(data) => { console.log(`drag blue over: ${JSON.stringify(data, null, 2)}`); }}
+							onDragExit={(data) => { console.log(`drag blue out of: ${JSON.stringify(data, null, 2)}`); }}
+							onDragDrop={(data) => { console.log(`drop blue into: ${JSON.stringify(data, null, 2)}`); }}
 							dragPayload={{ boxName: 'blue' }}
 						>
 							<Text>draggable only</Text>
@@ -274,11 +274,11 @@ const App = () => {
 							dragReleasedStyle={styles.dragReleaseHighlight}
 							receivingStyle={styles.receiveHighlight}
 							draggable
-							onReceiveDragDrop={(payload: Cargo) => {
-								console.log(`green received drop: ${JSON.stringify(payload, null, 2)}`);
+							onReceiveDragDrop={({ dragPayload }: { dragPayload: Cargo }) => {
+								console.log(`green received drop: ${JSON.stringify(dragPayload, null, 2)}`);
 								setGreenReceived([
 									...greenReceived,
-									payload.letter ?? payload.boxName ?? '?',
+									dragPayload.letter ?? dragPayload.boxName ?? '?',
 								]);
 							}}
 							dragReleaseAnimationDelay={500}
@@ -291,11 +291,11 @@ const App = () => {
 						<DraxView
 							style={styles.yellowBox}
 							receivingStyle={styles.receiveHighlight}
-							onReceiveDragDrop={(payload: Cargo) => {
-								console.log(`yellow received drop: ${JSON.stringify(payload, null, 2)}`);
+							onReceiveDragDrop={({ dragPayload }: { dragPayload: Cargo }) => {
+								console.log(`yellow received drop: ${JSON.stringify(dragPayload, null, 2)}`);
 								setYellowReceived([
 									...yellowReceived,
-									payload.letter ?? payload.boxName ?? '?',
+									dragPayload.letter ?? dragPayload.boxName ?? '?',
 								]);
 							}}
 							receiverPayload={{ boxName: 'yellow' }}
@@ -304,23 +304,23 @@ const App = () => {
 							<Text style={styles.receivedText}>{`received: ${yellowReceived.join('-')}`}</Text>
 						</DraxView>
 						<View style={styles.bottomRow}>
-							<DraxView dragPayload={{ letter: 'X' }}>
+							<DraxView longPressDelay={0} dragPayload={{ letter: 'X' }}>
 								<View style={styles.bottomBox}>
 									<Text style={styles.bottomBoxText}>X</Text>
 								</View>
 							</DraxView>
-							<DraxView dragPayload={{ letter: 'Y' }}>
+							<DraxView longPressDelay={0} dragPayload={{ letter: 'Y' }}>
 								<View style={styles.bottomBox}>
 									<Text style={styles.bottomBoxText}>Y</Text>
 								</View>
 							</DraxView>
-							<DraxView dragPayload={{ letter: 'Z' }}>
+							<DraxView longPressDelay={0} dragPayload={{ letter: 'Z' }}>
 								<View style={styles.bottomBox}>
 									<Text style={styles.bottomBoxText}>Z</Text>
 								</View>
 							</DraxView>
 						</View>
-					</ScrollView> */}
+					</ScrollView>
 					{/* <View style={styles.topRow}>
 						<DraxView dragPayload={{ letter: 'X' }}>
 							<View style={styles.bottomBox}>
@@ -355,7 +355,7 @@ const App = () => {
 							</View>
 						</DraxView>
 					</View> */}
-					<DraxList
+					{/* <DraxList
 						style={{ marginTop: 100 }}
 						data={['1', '2', '3', '4', '5', '6', '7', '8', '9']}
 						horizontal
@@ -367,6 +367,7 @@ const App = () => {
 						keyExtractor={(item) => item}
 					/>
 					<DraxList
+						style={{ flex: 1 }}
 						data={['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q']}
 						renderItem={({ item }) => (
 							<View style={styles.bottomBox}>
@@ -374,7 +375,7 @@ const App = () => {
 							</View>
 						)}
 						keyExtractor={(item) => item}
-					/>
+					/> */}
 				</DraxProvider>
 			</View>
 		</>
