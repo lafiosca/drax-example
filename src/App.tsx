@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, RefObject } from 'react';
 import {
 	SafeAreaView,
 	StyleSheet,
@@ -6,6 +6,9 @@ import {
 	Text,
 	View,
 	ScrollView,
+	findNodeHandle,
+	FlatList,
+	Button,
 } from 'react-native';
 
 import { DraxProvider, DraxView } from './drax';
@@ -19,12 +22,237 @@ interface Cargo {
 const App = () => {
 	const [greenReceived, setGreenReceived] = useState<string[]>([]);
 	const [yellowReceived, setYellowReceived] = useState<string[]>([]);
+	const blueRef = useRef<View>(null);
+	const greenRef = useRef<View>(null);
+	const viewRef = useRef<View>(null);
+	const scrollRef = useRef<ScrollView>(null);
+	const flatRef = useRef<FlatList<string>>(null);
+	const measureRef = (name: string, ref: RefObject<View>) => {
+		ref.current?.measure((x, y, width, height, pageX, pageY) => {
+			console.log(`${name} measure: ${JSON.stringify({ x, y, width, height, pageX, pageY }, null, 2)}`);
+		});
+		ref.current?.measureInWindow((x, y, width, height) => {
+			console.log(`${name} measureInWindow: ${JSON.stringify({ x, y, width, height }, null, 2)}`);
+		});
+		// if (flatRef.current) {
+		// 	const handle = findNodeHandle(flatRef.current);
+		// 	if (handle) {
+		// 		ref.current?.measureLayout(
+		// 			handle,
+		// 			(x, y, width, height) => {
+		// 				console.log(`${name} measureLayout flatRef: ${JSON.stringify({ x, y, width, height }, null, 2)}`);
+		// 			},
+		// 			() => {
+		// 				console.log(`${name} measureLayout flatRef failed`);
+		// 			},
+		// 		);
+		// 	} else {
+		// 		console.log(`failed to find handle for flatRef (${name})`);
+		// 	}
+		// } else {
+		// 	console.log(`no flatRef (${name})`);
+		// }
+		// if (viewRef.current) {
+		// 	const handle = findNodeHandle(viewRef.current);
+		// 	if (handle) {
+		// 		ref.current?.measureLayout(
+		// 			handle,
+		// 			(x, y, width, height) => {
+		// 				console.log(`${name} measureLayout viewRef: ${JSON.stringify({ x, y, width, height }, null, 2)}`);
+		// 			},
+		// 			() => {
+		// 				console.log(`${name} measureLayout viewRef failed`);
+		// 			},
+		// 		);
+		// 	} else {
+		// 		console.log(`failed to find handle for viewRef (${name})`);
+		// 	}
+		// } else {
+		// 	console.log(`no viewRef (${name})`);
+		// }
+		if (scrollRef.current) {
+			const handle = findNodeHandle(scrollRef.current);
+			if (handle) {
+				ref.current?.measureLayout(
+					handle,
+					(x, y, width, height) => {
+						console.log(`${name} measureLayout scrollRef: ${JSON.stringify({ x, y, width, height }, null, 2)}`);
+					},
+					() => {
+						console.log(`${name} measureLayout scrollRef failed`);
+					},
+				);
+			} else {
+				console.log(`failed to find handle for scrollRef (${name})`);
+			}
+		} else {
+			console.log(`no scrollRef (${name})`);
+		}
+	};
 	return (
 		<>
 			<StatusBar barStyle="dark-content" />
-			<SafeAreaView style={styles.container}>
-				<DraxProvider>
-					<ScrollView>
+			<View style={styles.container}>
+				{/* <FlatList
+					ref={flatRef}
+					onLayout={({ nativeEvent }) => {
+						console.log(`flatlist onLayout: ${JSON.stringify(nativeEvent.layout, null, 2)}`);
+					}}
+					style={{ flex: 1, margin: 30, backgroundColor: 'grey' }}
+					data={['y', 'y', 'y', 'y', 'y', 'y', 'y', 'h', 'blue', 'green', 'y', 'y', 'y', 'y']}
+					renderItem={({ item }) => {
+						if (item === 'blue' || item === 'green') {
+							const ref = item === 'green' ? greenRef : blueRef;
+							const margin = item === 'green' ? 15 : 0;
+							return (
+								<View
+									ref={ref}
+									style={{
+										width: 200,
+										height: 100,
+										backgroundColor: item,
+										marginLeft: margin,
+										marginTop: margin,
+									}}
+									collapsable={false}
+									onLayout={({ nativeEvent }) => {
+										console.log(`${item} onLayout: ${JSON.stringify(nativeEvent.layout, null, 2)}`);
+										measureRef(item, ref);
+									}}
+								/>
+							);
+						}
+						return (
+							<View
+								style={{
+									width: 10,
+									height: (item === 'h' ? 40 : 90),
+									marginLeft: 10,
+									marginBottom: 10,
+									backgroundColor: 'yellow',
+								}}
+							/>
+						);
+					}}
+					keyExtractor={(item, index) => `${index}`}
+				/> */}
+				{/* <View style={{ marginBottom: 30 }}>
+					<Button
+						title="measure"
+						onPress={() => {
+							console.log('**** REMEASURE ***');
+							measureRef('blue', blueRef);
+							measureRef('green', greenRef);
+						}}
+					/>
+				</View> */}
+				<ScrollView
+					ref={scrollRef}
+					style={{ flex: 1, margin: 30, backgroundColor: 'grey' }}
+					onLayout={({ nativeEvent }) => {
+						console.log(`scrollview onLayout: ${JSON.stringify(nativeEvent.layout, null, 2)}`);
+						console.log(`inner view node: ${scrollRef.current?.getInnerViewNode()}`);
+						console.log(`scrollable node: ${scrollRef.current?.getScrollableNode()}`);
+						console.log(`scroll responder scrollable node: ${scrollRef.current?.scrollResponderGetScrollableNode()}`);
+					}}
+				>
+					<View style={{ width: 10, height: 90, marginLeft: 10, marginBottom: 10, backgroundColor: 'yellow' }} />
+					<View style={{ width: 10, height: 90, marginLeft: 10, marginBottom: 10, backgroundColor: 'yellow' }} />
+					<View style={{ width: 10, height: 90, marginLeft: 10, marginBottom: 10, backgroundColor: 'yellow' }} />
+					<View style={{ width: 10, height: 90, marginLeft: 10, marginBottom: 10, backgroundColor: 'yellow' }} />
+					<View style={{ width: 10, height: 90, marginLeft: 10, marginBottom: 10, backgroundColor: 'yellow' }} />
+					<View style={{ width: 10, height: 90, marginLeft: 10, marginBottom: 10, backgroundColor: 'yellow' }} />
+					<View style={{ width: 10, height: 90, marginLeft: 10, marginBottom: 10, backgroundColor: 'yellow' }} />
+					<View style={{ width: 10, height: 40, marginLeft: 10, marginBottom: 10, backgroundColor: 'yellow' }} />
+					<View
+						ref={blueRef}
+						style={{ width: 200, height: 100, backgroundColor: 'blue' }}
+						onLayout={({ nativeEvent }) => {
+							console.log(`blueRef onLayout layout: ${JSON.stringify(nativeEvent.layout, null, 2)}`);
+							measureRef('blue', blueRef);
+						}}
+					/>
+					<View
+						ref={greenRef}
+						style={{ width: 200, height: 100, backgroundColor: 'green', marginTop: 15, marginLeft: 15 }}
+						onLayout={({ nativeEvent }) => {
+							console.log(`greenRef onLayout layout: ${JSON.stringify(nativeEvent.layout, null, 2)}`);
+							measureRef('green', blueRef);
+						}}
+					/>
+				</ScrollView>
+				<View style={{ marginBottom: 30 }}>
+					<Button
+						title="measure"
+						onPress={() => {
+							console.log('**** REMEASURE ***');
+							measureRef('blue', blueRef);
+							measureRef('green', greenRef);
+						}}
+					/>
+				</View>
+				{/* <View ref={viewRef} style={{ flex: 1, margin: 30, backgroundColor: 'grey' }}>
+					<View
+						ref={blueRef}
+						style={{ width: 200, height: 100, backgroundColor: 'blue' }}
+						onLayout={({ nativeEvent }) => {
+							console.log(`blueRef onLayout layout: ${JSON.stringify(nativeEvent.layout, null, 2)}`);
+							blueRef.current?.measure((x, y, width, height, pageX, pageY) => {
+								console.log(`blueRef measure: ${JSON.stringify({ x, y, width, height, pageX, pageY }, null, 2)}`);
+							});
+							blueRef.current?.measureInWindow((x, y, width, height) => {
+								console.log(`blueRef measureInWindow: ${JSON.stringify({ x, y, width, height }, null, 2)}`);
+							});
+							if (viewRef.current) {
+								const handle = findNodeHandle(viewRef.current);
+								if (handle) {
+									blueRef.current?.measureLayout(
+										handle,
+										(x, y, width, height) => {
+											console.log(`blue measureLayout: ${JSON.stringify({ x, y, width, height }, null, 2)}`);
+										},
+										() => {
+											console.log('blue measureLayout failed');
+										},
+									);
+								} else {
+									console.log('failed to find handle for parent (blue)');
+								}
+							}
+						}}
+					/>
+					<View
+						ref={greenRef}
+						style={{ width: 200, height: 100, backgroundColor: 'green', marginTop: 15, marginLeft: 15 }}
+						onLayout={({ nativeEvent }) => {
+							console.log(`greenRef onLayout layout: ${JSON.stringify(nativeEvent.layout, null, 2)}`);
+							greenRef.current?.measure((x, y, width, height, pageX, pageY) => {
+								console.log(`greenRef measure: ${JSON.stringify({ x, y, width, height, pageX, pageY }, null, 2)}`);
+							});
+							greenRef.current?.measureInWindow((x, y, width, height) => {
+								console.log(`greenRef measureInWindow: ${JSON.stringify({ x, y, width, height }, null, 2)}`);
+							});
+							if (viewRef.current) {
+								const handle = findNodeHandle(viewRef.current);
+								if (handle) {
+									greenRef.current?.measureLayout(
+										handle,
+										(x, y, width, height) => {
+											console.log(`green measureLayout: ${JSON.stringify({ x, y, width, height }, null, 2)}`);
+										},
+										() => {
+											console.log('green measureLayout failed');
+										},
+									);
+								} else {
+									console.log('failed to find handle for parent (green)');
+								}
+							}
+						}}
+					/>
+				</View> */}
+				{/* <DraxProvider> */}
+					{/* <ScrollView>
 						<DraxView
 							style={styles.blueBox}
 							draggingStyle={styles.dragHighlight}
@@ -92,7 +320,7 @@ const App = () => {
 								</View>
 							</DraxView>
 						</View>
-					</ScrollView>
+					</ScrollView> */}
 					{/* <View style={{ alignItems: 'center' }}>
 						<DraxView dragPayload={{ letter: 'X' }} style={{ borderWidth: 1, borderColor: 'blue' }}>
 							<View style={styles.bottomBox}>
@@ -119,8 +347,8 @@ const App = () => {
 						)}
 						keyExtractor={(item) => item}
 					/> */}
-				</DraxProvider>
-			</SafeAreaView>
+				{/* </DraxProvider> */}
+			</View>
 		</>
 	);
 };

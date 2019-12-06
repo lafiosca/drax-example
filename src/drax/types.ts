@@ -153,7 +153,7 @@ export interface MeasureViewPayload {
 	/** The view's unique identifier */
 	id: string;
 	/** The view's measurements */
-	measurements: DraxViewMeasurements;
+	measurements: DraxViewMeasurements | undefined;
 }
 
 /** Payload used by Drax provider internally for updating activity for a view */
@@ -232,6 +232,12 @@ export interface DraxProviderProps {
 	debug?: boolean;
 }
 
+/** Methods provided by a DraxView when registered externally */
+export interface DraxViewRegistration {
+	id: string;
+	measure: () => void;
+}
+
 /** Props for a DraxView; combines protocol props and standard view props */
 export interface DraxViewProps extends DraxProtocolProps, ViewProps {
 	/** If true, translate the view position and elevate while this view is dragged; defaults to true */
@@ -266,6 +272,9 @@ export interface DraxViewProps extends DraxProtocolProps, ViewProps {
 
 	/** Additional view style applied to this view while any other view is being dragged NOT over a receiver */
 	otherDraggingWithoutReceiverStyle?: ViewProps['style'];
+
+	/** For external registration of this view, to access internal methods, similar to a ref */
+	registration?: (registration: DraxViewRegistration | undefined) => void;
 }
 
 export interface DraxListProps<TItem> extends FlatListProperties<TItem> {}

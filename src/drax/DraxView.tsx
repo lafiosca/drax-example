@@ -59,12 +59,13 @@ export const DraxView = (
 		otherDraggingStyle,
 		otherDraggingWithReceiverStyle,
 		otherDraggingWithoutReceiverStyle,
+		registration,
 		children,
 		...props
 	}: PropsWithChildren<DraxViewProps>,
 ): ReactElement => {
 	const [id, setId] = useState(''); // The unique identifer for this view, initialized below.
-	const ref = useRef<AnimatedViewRef>(null);
+	const ref = useRef<AnimatedViewRef>(null); // Ref to the underlying Animated.View, used for measuring.
 	const {
 		getViewData,
 		getTrackingStatus,
@@ -75,7 +76,11 @@ export const DraxView = (
 		handleGestureEvent,
 		handleGestureStateChange,
 	} = useDrax();
-	useEffect(() => { setId(uuid()); }, []); // Initialize id once.
+
+	// Initialize id once.
+	useEffect(() => { setId(uuid()); }, []);
+
+	// Register and unregister with Drax context when necessary.
 	useEffect(
 		() => {
 			if (id) {
@@ -86,10 +91,11 @@ export const DraxView = (
 		},
 		[id, registerView, unregisterView],
 	);
+
+	// Report updates to our protocol callbacks when we have an id and whenever the props change.
 	useEffect(
 		() => {
 			if (id) {
-				// Update our protocol callbacks once we have an id and whenever these props change.
 				updateViewProtocol({
 					id,
 					protocol: {
@@ -138,39 +144,62 @@ export const DraxView = (
 			receptive,
 		],
 	);
+
+	// Connect gesture state change handling into Drax context, tied to this id.
 	const onHandlerStateChange = useCallback(
-		// Wire gesture state change handling into Drax context, tied to this id.
 		(event: LongPressGestureHandlerStateChangeEvent) => handleGestureStateChange(id, event),
 		[id, handleGestureStateChange],
 	);
+
+	// Connect gesture event handling into Drax context, tied to this id.
 	const onGestureEvent = useCallback(
-		// Wire gesture event handling into Drax context, tied to this id.
 		(event: LongPressGestureHandlerGestureEvent) => handleGestureEvent(id, event),
 		[id, handleGestureEvent],
 	);
-	const onLayout = useCallback(
+
+	/*
+	 * Measure and send our measurements to Drax context, used when
+	 * we finish layout or receive a manual request,
+	 */
+	const measure = useCallback(
 		() => {
-			console.log('onLayout');
-			if (ref.current) {
-				console.log('measure');
-			}
-			// Every time we finish layout, measure and send our measurements to Drax context.
-			ref.current?.getNode().measure((x, y, width, height, screenX, screenY) => {
-				console.log(`Measure success callback: ${x}, ${y}, ${width}, ${height}, ${screenX}, ${screenY}`);
-				if (x !== undefined) { // Don't dispatch with undefined values.
-					measureView({
-						id,
-						measurements: {
+			ref.current?.getNode().measureInWindow((x, y, width, height) => {
+				console.log(`measureInWindow success callback: ${x}, ${y}, ${width}, ${height}`);
+				/*
+				 * In certain cases (on Android), all of these values can be
+				 * undefined when the view is not on screen; for those, we
+				 * send undefined for the entire measurements object.
+				 */
+				measureView({
+					id,
+					measurements: (height === undefined
+						? undefined
+						: {
 							width,
 							height,
-							screenX,
-							screenY,
-						},
-					});
-				}
+							screenX: x,
+							screenY: y,
+						}
+					),
+				});
 			});
 		},
 		[id, measureView],
+	);
+
+	// Register and unregister externally when necessary.
+	useEffect(
+		() => {
+			if (id && registration) { // Register externally when we have an id and registration is set.
+				registration({
+					id,
+					measure,
+				});
+				return () => registration(undefined); // Unregister when we unmount or registration changes.
+			}
+			return undefined;
+		},
+		[id, registration, measure],
 	);
 
 	// Retrieve data for building styles.
@@ -221,6 +250,7 @@ export const DraxView = (
 			});
 		}
 	}
+
 	return (
 		<LongPressGestureHandler
 			maxDist={Number.MAX_SAFE_INTEGER}
@@ -233,7 +263,7 @@ export const DraxView = (
 				{...props}
 				ref={ref}
 				style={styles}
-				onLayout={onLayout}
+				onLayout={measure}
 				collapsable={false}
 			>
 				{children}
