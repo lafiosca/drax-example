@@ -17,10 +17,11 @@ import uuid from 'uuid/v4';
 import { useDrax } from './useDrax';
 import {
 	DraxViewProps,
-	AnimatedViewRef,
+	AnimatedViewRef as AnimatedViewRefType,
 	DraxDraggedViewState,
 	DraxReceiverViewState,
 } from './types';
+import { defaultLongPressDelay } from './params';
 
 const defaultStyle = {
 	width: 'auto',
@@ -45,9 +46,6 @@ export const DraxView = (
 		payload,
 		dragPayload,
 		receiverPayload,
-		draggable,
-		receptive,
-		translateDrag = true,
 		style,
 		dragInactiveStyle,
 		draggingStyle,
@@ -60,12 +58,43 @@ export const DraxView = (
 		otherDraggingWithReceiverStyle,
 		otherDraggingWithoutReceiverStyle,
 		registration,
+		parent,
+		scrollPositionRef,
 		children,
+		translateDrag = true,
+		longPressDelay = defaultLongPressDelay,
+		id: idProp,
+		draggable: draggableProp,
+		receptive: receptiveProp,
 		...props
 	}: PropsWithChildren<DraxViewProps>,
 ): ReactElement => {
+	const draggable = draggableProp ?? (
+		!!dragPayload
+		|| !!payload
+		|| !!onDrag
+		|| !!onDragEnd
+		|| !!onDragEnter
+		|| !!onDragExit
+		|| !!onDragOver
+		|| !!onDragStart
+		|| !!onDragDrop
+	);
+	const receptive = receptiveProp ?? (
+		!!receiverPayload
+		|| !!payload
+		|| !!onReceiveDragEnter
+		|| !!onReceiveDragExit
+		|| !!onReceiveDragOver
+		|| !!onReceiveDragDrop
+	);
+
+	const parentId = parent && parent.id;
+
 	const [id, setId] = useState(''); // The unique identifer for this view, initialized below.
-	const ref = useRef<AnimatedViewRef>(null); // Ref to the underlying Animated.View, used for measuring.
+	const ref = useRef<AnimatedViewRefType>(null); // Ref to the underlying Animated.View, used for measuring.
+
+	// Connect with Drax.
 	const {
 		getViewData,
 		getTrackingStatus,
@@ -77,19 +106,39 @@ export const DraxView = (
 		handleGestureStateChange,
 	} = useDrax();
 
-	// Initialize id once.
-	useEffect(() => { setId(uuid()); }, []);
+	// Initialize id.
+	useEffect(
+		() => {
+			if (idProp) {
+				if (id !== idProp) {
+					setId(idProp);
+				}
+			} else if (!id) {
+				setId(uuid());
+			}
+		},
+		[id, idProp],
+	);
 
 	// Register and unregister with Drax context when necessary.
 	useEffect(
 		() => {
 			if (id) {
-				registerView({ id }); // Register with Drax context after we have an id.
-				return () => unregisterView({ id }); // Unregister when we unmount.
+				// Register with Drax context after we have an id.
+				registerView({ id, parentId, scrollPositionRef });
+
+				// Unregister when we unmount.
+				return () => unregisterView({ id });
 			}
 			return undefined;
 		},
-		[id, registerView, unregisterView],
+		[
+			id,
+			parentId,
+			scrollPositionRef,
+			registerView,
+			unregisterView,
+		],
 	);
 
 	// Report updates to our protocol callbacks when we have an id and whenever the props change.
@@ -112,11 +161,10 @@ export const DraxView = (
 						onReceiveDragDrop,
 						dragReleaseAnimationDelay,
 						dragReleaseAnimationDuration,
-						payload,
-						dragPayload,
-						receiverPayload,
 						draggable,
 						receptive,
+						dragPayload: dragPayload ?? payload,
+						receiverPayload: receiverPayload ?? payload,
 					},
 				});
 			}
@@ -157,34 +205,58 @@ export const DraxView = (
 		[id, handleGestureEvent],
 	);
 
+	// Report our measurements to Drax context.
+	const updateMeasurements = useCallback(
+		(x, y, width, height) => {
+			console.log(`updateMeasurements: ${x}, ${y}, ${width}, ${height}`);
+			/*
+				* In certain cases (on Android), all of these values can be
+				* undefined when the view is not on screen; This should not
+				* happen with the measurement functions we're using, but just
+				* for the sake of paranoia, we'll check and send undefined
+				* for the entire measurements object.
+				*/
+			measureView({
+				id,
+				measurements: (height === undefined
+					? undefined
+					: {
+						x,
+						y,
+						width,
+						height,
+					}
+				),
+			});
+		},
+		[id, measureView],
+	);
+
 	/*
 	 * Measure and send our measurements to Drax context, used when
 	 * we finish layout or receive a manual request,
 	 */
 	const measure = useCallback(
 		() => {
-			ref.current?.getNode().measureInWindow((x, y, width, height) => {
-				console.log(`measureInWindow success callback: ${x}, ${y}, ${width}, ${height}`);
-				/*
-				 * In certain cases (on Android), all of these values can be
-				 * undefined when the view is not on screen; for those, we
-				 * send undefined for the entire measurements object.
-				 */
-				measureView({
-					id,
-					measurements: (height === undefined
-						? undefined
-						: {
-							width,
-							height,
-							screenX: x,
-							screenY: y,
-						}
-					),
-				});
-			});
+			const view = ref.current?.getNode();
+			if (parent) {
+				const nodeHandle = parent.nodeHandleRef.current;
+				if (nodeHandle) {
+					view?.measureLayout(
+						nodeHandle,
+						updateMeasurements,
+						() => {
+							console.log('Failed to measure drax view in relation to parent');
+						},
+					);
+				} else {
+					console.log('No parent nodeHandle to measure drax view in relation to');
+				}
+			} else {
+				ref.current?.getNode().measureInWindow(updateMeasurements);
+			}
 		},
-		[id, measureView],
+		[parent, updateMeasurements],
 	);
 
 	// Register and unregister externally when necessary.
@@ -255,9 +327,10 @@ export const DraxView = (
 		<LongPressGestureHandler
 			maxDist={Number.MAX_SAFE_INTEGER}
 			shouldCancelWhenOutside={false}
-			minDurationMs={250}
+			minDurationMs={longPressDelay}
 			onHandlerStateChange={onHandlerStateChange}
 			onGestureEvent={onGestureEvent}
+			enabled={draggable}
 		>
 			<Animated.View
 				{...props}

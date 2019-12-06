@@ -27,22 +27,27 @@ import {
 	DraxDraggedViewState,
 	DraxContextValue,
 	DraxTrackingStatus,
+	DraxStateViewData,
+	DraxViewMeasurements,
 } from '../types';
 import {
 	defaultDragReleaseAnimationDelay,
 	defaultDragReleaseAnimationDuration,
 } from '../params';
 import { DraxContext } from '../DraxContext';
+import { clipMeasurements, isPointInside } from '../math';
 
 export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = false, children }) => {
 	const [state, dispatch] = useReducer(reducer, initialState);
 	const dragTrackingRef = useRef<DraxTracking | undefined>(undefined);
+
 	const getViewData = useCallback(
 		(id: string | undefined) => (
 			(id && state.viewIds.includes(id)) ? state.viewDataById[id] : undefined
 		),
 		[state.viewIds, state.viewDataById],
 	);
+
 	const updateActivity = useCallback(
 		(payload: UpdateActivityPayload) => {
 			if (debug) {
@@ -52,6 +57,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		},
 		[dispatch, debug],
 	);
+
 	const updateActivities = useCallback(
 		(payload: UpdateActivitiesPayload) => {
 			if (debug) {
@@ -61,6 +67,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		},
 		[dispatch, debug],
 	);
+
 	const resetReceiver = useCallback(
 		() => {
 			const dragTracking = dragTrackingRef.current;
@@ -87,6 +94,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		},
 		[updateActivity, debug],
 	);
+
 	const resetDrag = useCallback(
 		() => {
 			const dragTracking = dragTrackingRef.current;
@@ -132,6 +140,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		},
 		[resetReceiver, updateActivity, debug],
 	);
+
 	const registerView = useCallback(
 		(payload: RegisterViewPayload) => {
 			if (debug) {
@@ -141,6 +150,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		},
 		[dispatch, debug],
 	);
+
 	const unregisterView = useCallback(
 		(payload: UnregisterViewPayload) => {
 			if (debug) {
@@ -161,6 +171,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			debug,
 		],
 	);
+
 	const updateViewProtocol = useCallback(
 		(payload: UpdateViewProtocolPayload) => {
 			if (debug) {
@@ -170,6 +181,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		},
 		[dispatch, debug],
 	);
+
 	const measureView = useCallback(
 		(payload: MeasureViewPayload) => {
 			if (debug) {
@@ -179,6 +191,56 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		},
 		[dispatch, debug],
 	);
+
+	const getAbsoluteMeasurements = useCallback(
+		({ measurements, parentId }: DraxStateViewData): DraxViewMeasurements | undefined => {
+			if (!measurements) {
+				return undefined;
+			}
+			if (!parentId) {
+				return measurements;
+			}
+			const parentViewData = getViewData(parentId);
+			if (!parentViewData) {
+				return undefined;
+			}
+			const parentMeasurements = getAbsoluteMeasurements(parentViewData);
+			if (!parentMeasurements) {
+				return undefined;
+			}
+			const {
+				x,
+				y,
+				width,
+				height,
+			} = measurements;
+			const {
+				x: parentX,
+				y: parentY,
+			} = parentMeasurements;
+			const { x: offsetX, y: offsetY } = parentViewData.scrollPositionRef?.current || { x: 0, y: 0 };
+			const abs: DraxViewMeasurements = {
+				width,
+				height,
+				x: parentX + x - offsetX,
+				y: parentY + y - offsetY,
+			};
+			return clipMeasurements(abs, parentMeasurements);
+		},
+		[getViewData],
+	);
+
+	const getAbsoluteViewData = useCallback(
+		(id: string | undefined) => {
+			const viewData = getViewData(id);
+			return viewData && {
+				...viewData,
+				absoluteMeasurements: getAbsoluteMeasurements(viewData),
+			};
+		},
+		[getViewData, getAbsoluteMeasurements],
+	);
+
 	const findReceiver = useCallback(
 		(touchScreenX: number, touchScreenY: number, excludeViewId?: string) => {
 			/*
@@ -190,22 +252,16 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 				if (targetId !== excludeViewId) { // Don't consider the excluded view.
 					const target = getViewData(targetId);
 					if (target?.protocol.receptive) { // Only consider receptive views.
-						const { measurements: targetMeasurements } = target;
-						if (targetMeasurements) { // Only consider views for which we have measure data.
-							const {
-								screenX,
-								screenY,
-								width,
-								height,
-							} = targetMeasurements;
-							if (touchScreenX >= screenX
-								&& touchScreenY >= screenY
-								&& touchScreenX <= screenX + width
-								&& touchScreenY <= screenY + height) {
+						const absoluteMeasurements = getAbsoluteMeasurements(target);
+						if (absoluteMeasurements) { // Only consider views for which we have measure data.
+							if (isPointInside(touchScreenX, touchScreenY, absoluteMeasurements)) {
 								// Drag point is within this target.
 								return {
 									id: targetId,
-									data: target,
+									data: {
+										...target,
+										absoluteMeasurements,
+									},
 								};
 							}
 						}
@@ -214,8 +270,9 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			}
 			return undefined;
 		},
-		[state.viewIds, getViewData],
+		[state.viewIds, getViewData, getAbsoluteMeasurements],
 	);
+
 	const handleGestureStateChange = useCallback(
 		(id: string, { nativeEvent }: LongPressGestureHandlerStateChangeEvent) => {
 			if (debug) {
@@ -310,15 +367,15 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			} else {
 				// Case 3: We're not already dragging a view.
 
-				const draggedData = getViewData(id);
+				const draggedData = getAbsoluteViewData(id);
 
 				if (!draggedData) {
 					if (debug) {
 						console.log(`Ignoring gesture for view id ${id} because view data was not found`);
 					}
-				} else if (!draggedData.measurements) {
+				} else if (!draggedData.absoluteMeasurements) {
 					if (debug) {
-						console.log(`Ignoring gesture for view id ${id} because it is not yet measured`);
+						console.log(`Ignoring gesture for view id ${id} because view is not measured`);
 					}
 				} else if (!draggedData.protocol.draggable) {
 					if (debug) {
@@ -348,11 +405,11 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 
 					if (startDrag) {
 						const {
-							screenX, // x position of dragged view within screen
-							screenY, // y position of dragged view within screen
+							x: screenX, // x position of dragged view within screen
+							y: screenY, // y position of dragged view within screen
 							width, // width of dragged view
 							height, // height of dragged view
-						} = draggedData.measurements;
+						} = draggedData.absoluteMeasurements;
 						const {
 							x: grabX, // x position of touch relative to dragged view
 							y: grabY, // y position of touch relative to dragged view
@@ -365,13 +422,15 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 						 * Because we are using a LongPressGestureHandler with unlimited
 						 * distance to handle the drag, it could be out of bounds before
 						 * it even starts. (For some reason, LongPressGestureHandler does
-						 * not provide us with a BEGAN state change event.)
+						 * not provide us with a BEGAN state change event in iOS.)
 						 */
-						if (grabX >= 0 && grabX <= width && grabY >= 0 && grabY <= height) {
+						if (grabX >= 0 && grabY >= 0 && grabX <= width && grabY <= height) {
 							/*
 							* To determine drag start position in screen coordinates, we add:
 							*   screen coordinates of dragged view
 							*   + relative coordinates of touch within view
+							*
+							* NOTE: if view is already transformed, these will be wrong.
 							*/
 							const screenStartPosition = {
 								x: screenX + grabX,
@@ -415,11 +474,13 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		},
 		[
 			getViewData,
+			getAbsoluteViewData,
 			resetDrag,
 			updateActivity,
 			debug,
 		],
 	);
+
 	const handleGestureEvent = useCallback(
 		(id: string, { nativeEvent }: LongPressGestureHandlerGestureEvent) => {
 			if (debug) {
@@ -467,9 +528,8 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			};
 
 			if (debug) {
-				// We cannot be in a dragging state without measurements. (See handleGestureStateChange above.)
-				const draggedMeasurements = draggedData.measurements!;
-				console.log(`Dragged item screen coordinates (${draggedMeasurements.screenX}, ${draggedMeasurements.screenY})`);
+				const draggedMeasurements = getAbsoluteMeasurements(draggedData);
+				console.log(`Dragged item screen coordinates (${draggedMeasurements?.x}, ${draggedMeasurements?.y})`);
 				console.log(`Native event in-view touch coordinates: (${nativeEvent.x}, ${nativeEvent.y})`);
 				console.log(`Drag translation (${translation.x}, ${translation.y})`);
 				console.log(`Drag at screen coordinates (${dragScreen.x}, ${dragScreen.y})\n`);
@@ -497,11 +557,10 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 				const { id: receiverId, data: receiverData } = receiver;
 				const receiverProtocol = receiverData.protocol;
 
-				// We cannot find a receiver without measurements. (See findReceiver.)
 				const {
-					screenX: receiverScreenX,
-					screenY: receiverScreenY,
-				} = receiverData.measurements!;
+					x: receiverScreenX,
+					y: receiverScreenY,
+				} = receiverData.absoluteMeasurements;
 
 				// Update the current receiver animation offset.
 				receiverData.activity.receiverOffset.setValue({
@@ -615,6 +674,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		},
 		[
 			getViewData,
+			getAbsoluteMeasurements,
 			updateActivities,
 			findReceiver,
 			resetDrag,

@@ -1,3 +1,4 @@
+import { RefObject } from 'react';
 import {
 	ViewProps,
 	View,
@@ -11,10 +12,10 @@ import {
 
 /** Measurements of a Drax view for bounds checking purposes */
 export interface DraxViewMeasurements {
-	/** x position of view within screen */
-	screenX: number;
-	/** y position of view within screen */
-	screenY: number;
+	/** x position of view within parent drax view or screen */
+	x: number;
+	/** y position of view within parent drax view or screen */
+	y: number;
 	/** Width of view */
 	width: number;
 	/** Height of view */
@@ -62,9 +63,6 @@ export interface DraxProtocol {
 	/** When releasing a drag of this view, duration in ms for it to snap back to inactive state */
 	dragReleaseAnimationDuration?: number;
 
-	/** Convenience prop to provide one value for both `dragPayload` and `receiverPayload` */
-	payload?: any;
-
 	/** Payload that will be delivered to receiver views when this view is dragged; overrides `payload` */
 	dragPayload?: any;
 
@@ -79,44 +77,62 @@ export interface DraxProtocol {
 }
 
 /** Props for components implementing the protocol */
-export interface DraxProtocolProps extends Partial<DraxProtocol> {}
+export interface DraxProtocolProps extends Partial<DraxProtocol> {
+	/** Convenience prop to provide one value for both `dragPayload` and `receiverPayload` */
+	payload?: any;
+}
 
-/*
- * The states a dragged view can be in:
- *  Inactive: view is not being dragged
- *  Dragging: view is being actively dragged; an active drag touch began in this view
- *  Released: view has been released but has not yet snapped back to inactive
- */
+/** The states a dragged view can be in */
 export enum DraxDraggedViewState {
+	/** View is not being dragged */
 	Inactive,
+	/** View is being actively dragged; an active drag touch began in this view */
 	Dragging,
+	/** View has been released but has not yet snapped back to inactive */
 	Released,
 }
 
-/*
- * The states a receiver view can be in:
- *  Inactive: view is not receiving a drag
- *  Receiving: view is receiving a drag; an active drag touch point is currently over this view
- */
+/** The states a receiver view can be in */
 export enum DraxReceiverViewState {
+	/** View is not receiving a drag */
 	Inactive,
+	/** View is receiving a drag; an active drag touch point is currently over this view */
 	Receiving,
 }
 
 /** Drag/receive activity for a registered view, for use in that view */
 export interface DraxActivity {
+	/** Current drag state of the view: dragged, released, or inactive */
 	dragState: DraxDraggedViewState;
+	/** If the view is being dragged or released, an translation from the view's position of where the drag is */
 	dragOffset: Animated.ValueXY;
+	/** If the view is being dragged over a receiver, that receiver's payload */
 	draggingOverReceiverPayload?: any;
+	/** Current receiver state of the view: receiving a drag or inactive */
 	receiverState: DraxReceiverViewState;
+	/** If the view is receiving a drag, a translation from the view's position of where the drag is */
 	receiverOffset: Animated.ValueXY;
+	/** If the view is receiving a drag, the dragged item's payload */
 	receivingDragPayload?: any;
+}
+
+/** Scroll position used when tracking nested views */
+export interface ScrollPosition {
+	x: number;
+	y: number;
 }
 
 /** Information about a view maintained in the Drax provider state */
 export interface DraxStateViewData {
+	/** The view's parent drax view id, if nested */
+	parentId?: string;
+	/** The view's scroll position ref, if it is a scrollable parent view */
+	scrollPositionRef?: RefObject<ScrollPosition>;
+	/** The view's protocol callbacks and data */
 	protocol: DraxProtocol;
+	/** The view's current drag/receive activity for use in the view */
 	activity: DraxActivity;
+	/** The view's measurements for bounds checking */
 	measurements?: DraxViewMeasurements;
 }
 
@@ -132,6 +148,10 @@ export interface DraxState {
 export interface RegisterViewPayload {
 	/** The view's unique identifier */
 	id: string;
+	/** The view's parent drax view id, if nested */
+	parentId?: string;
+	/** The view's scroll position ref, if it is a scrollable parent view */
+	scrollPositionRef?: RefObject<ScrollPosition>;
 }
 
 /** Payload for unregistering a Drax view */
@@ -145,7 +165,7 @@ export interface UpdateViewProtocolPayload {
 	/** The view's unique identifier */
 	id: string;
 	/** The current protocol values for the view */
-	protocol: DraxProtocolProps;
+	protocol: DraxProtocol;
 }
 
 /** Payload for reporting the latest measurements of a view after layout */
@@ -238,6 +258,14 @@ export interface DraxViewRegistration {
 	measure: () => void;
 }
 
+/** Information about the parent of a nested DraxView, primarily used for scrollable parent views */
+export interface DraxViewParent {
+	/** Drax view id of the parent */
+	id: string;
+	/** Ref to node handle of the parent, for measuring relative to */
+	nodeHandleRef: RefObject<number | null>;
+}
+
 /** Props for a DraxView; combines protocol props and standard view props */
 export interface DraxViewProps extends DraxProtocolProps, ViewProps {
 	/** If true, translate the view position and elevate while this view is dragged; defaults to true */
@@ -275,6 +303,21 @@ export interface DraxViewProps extends DraxProtocolProps, ViewProps {
 
 	/** For external registration of this view, to access internal methods, similar to a ref */
 	registration?: (registration: DraxViewRegistration | undefined) => void;
+
+	/** Unique drax view id, auto-generated if omitted */
+	id?: string;
+
+	/** Parent Drax view, if nesting */
+	parent?: DraxViewParent;
+
+	/** The view's scroll position ref, if it is a scrollable parent view */
+	scrollPositionRef?: RefObject<ScrollPosition>;
+
+	/** Time in milliseconds view needs to be pressed before drag starts */
+	longPressDelay?: number;
 }
 
-export interface DraxListProps<TItem> extends FlatListProperties<TItem> {}
+export interface DraxListProps<TItem> extends FlatListProperties<TItem> {
+	/** Unique drax view id, auto-generated if omitted */
+	id?: string;
+}

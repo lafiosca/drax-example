@@ -146,7 +146,7 @@ const App = () => {
 						}}
 					/>
 				</View> */}
-				<ScrollView
+				{/* <ScrollView
 					ref={scrollRef}
 					style={{ flex: 1, margin: 30, backgroundColor: 'grey' }}
 					onLayout={({ nativeEvent }) => {
@@ -190,7 +190,7 @@ const App = () => {
 							measureRef('green', greenRef);
 						}}
 					/>
-				</View>
+				</View> */}
 				{/* <View ref={viewRef} style={{ flex: 1, margin: 30, backgroundColor: 'grey' }}>
 					<View
 						ref={blueRef}
@@ -251,7 +251,7 @@ const App = () => {
 						}}
 					/>
 				</View> */}
-				{/* <DraxProvider> */}
+				<DraxProvider>
 					{/* <ScrollView>
 						<DraxView
 							style={styles.blueBox}
@@ -338,7 +338,7 @@ const App = () => {
 							</View>
 						</DraxView>
 					</View> */}
-					{/* <DraxList
+					<DraxList
 						data={['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q']}
 						renderItem={({ item }) => (
 							<View collapsable={false} style={styles.bottomBox}>
@@ -346,8 +346,8 @@ const App = () => {
 							</View>
 						)}
 						keyExtractor={(item) => item}
-					/> */}
-				{/* </DraxProvider> */}
+					/>
+				</DraxProvider>
 			</View>
 		</>
 	);

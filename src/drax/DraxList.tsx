@@ -5,113 +5,86 @@ import React, {
 	useRef,
 	useEffect,
 	useCallback,
-	Ref,
-	useMemo,
 } from 'react';
 import {
 	ListRenderItemInfo,
-	ViewToken,
 	NativeScrollEvent,
 	NativeSyntheticEvent,
-} from 'react-native';
-import {
 	FlatList,
-} from 'react-native-gesture-handler';
+	findNodeHandle,
+} from 'react-native';
 import uuid from 'uuid/v4';
 
-import { DraxListProps, DraxViewRegistration } from './types';
+import { DraxListProps, ScrollPosition } from './types';
 import { DraxView } from './DraxView';
-
-interface TypedViewToken<T> extends ViewToken {
-	item: T;
-}
-
-interface ViewableItemsChangeInfo<T> {
-	viewableItems: TypedViewToken<T>[];
-	changed: TypedViewToken<T>[];
-}
-
-interface DraxViewRegistry {
-	[key: string]: DraxViewRegistration | undefined;
-}
-
-interface WithKey {
-	key: string;
-}
-
-const hasKey = (item: unknown): item is WithKey => (
-	!!item && typeof (item as any).key === 'string'
-);
 
 export const DraxList = <T extends unknown>(
 	{
 		renderItem,
+		data,
+		id: idProp,
 		...props
 	}: PropsWithChildren<DraxListProps<T>>,
 ): ReactElement => {
 	const [id, setId] = useState(''); // The unique identifer for this list, initialized below.
-	const registryRef = useRef<DraxViewRegistry>({}); // A registry of all item views.
+	const nodeHandleRef = useRef<number | null>(null); // FlatList node handle, used for measuring children.
+	const scrollPositionRef = useRef<ScrollPosition>({ x: 0, y: 0 }); // Scroll position, for Drax bounds checking.
 
-	useEffect(() => { setId(uuid()); }, []); // Initialize id once.
-
-	// Find or construct keyExtractor.
-	const keyExtractor = useMemo(
+	// Initialize id.
+	useEffect(
 		() => {
-			if (props.keyExtractor) {
-				return props.keyExtractor;
+			if (idProp) {
+				if (id !== idProp) {
+					setId(idProp);
+				}
+			} else if (!id) {
+				setId(uuid());
 			}
-			return (item: T, index: number) => (hasKey(item) ? item.key : `${index}`);
 		},
-		[props.keyExtractor],
+		[id, idProp],
 	);
 
 	// Drax view renderItem wrapper.
 	const renderDraxViewItem = useCallback(
 		(info: ListRenderItemInfo<T>) => {
-			const { item, index } = info;
-			const key = keyExtractor(item, index);
+			const { index } = info;
 			return (
 				<DraxView
 					payload={{ id, index }}
-					registration={(registration) => {
-						registryRef.current[key] = registration;
-					}}
 					onDragDrop={(payload: any) => {
 						console.log(`Dragged ${index} onto ${payload.index}`);
 					}}
 					draggingStyle={{ backgroundColor: 'red' }}
 					receivingStyle={{ backgroundColor: 'magenta' }}
+					parent={{ id, nodeHandleRef }}
 				>
 					{renderItem(info)}
 				</DraxView>
 			);
 		},
-		[id, keyExtractor, renderItem],
-	);
-
-	const onViewableItemsChanged = useCallback(
-		({ viewableItems, changed }: ViewableItemsChangeInfo<T>) => {
-			changed.forEach(({ item, index }) => {
-				console.log(`viewability changed for ${index}`);
-				const key = keyExtractor(item, index || -1);
-				registryRef.current[key]?.measure();
-			});
-		},
-		[keyExtractor],
+		[id, renderItem],
 	);
 
 	const onScroll = useCallback(
-		({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
+		({ nativeEvent: { contentOffset } }: NativeSyntheticEvent<NativeScrollEvent>) => {
+			console.log(`Scrolled to ${JSON.stringify(contentOffset, null, 2)}`);
+			scrollPositionRef.current = { ...contentOffset };
 		},
 		[],
 	);
 
 	return (
-		<FlatList
-			renderItem={renderDraxViewItem}
-			onViewableItemsChanged={onViewableItemsChanged}
-			onScroll={onScroll}
-			{...props}
-		/>
+		<DraxView
+			id={id}
+			scrollPositionRef={scrollPositionRef}
+		>
+			<FlatList
+				ref={(ref) => { nodeHandleRef.current = ref && findNodeHandle(ref); }}
+				renderItem={renderDraxViewItem}
+				onScroll={onScroll}
+				data={id ? data : []}
+				{...props}
+			/>
+		</DraxView>
 	);
 };

@@ -11,6 +11,11 @@ import {
 import { DraxAction, actions } from './actions';
 import { selectViewData } from './selectors';
 
+const createInitialProtocol = (): DraxProtocol => ({
+	draggable: false,
+	receptive: false,
+});
+
 const createInitialActivity = (): DraxActivity => ({
 	dragState: DraxDraggedViewState.Inactive,
 	dragOffset: new Animated.ValueXY({ x: 0, y: 0 }),
@@ -28,12 +33,12 @@ export const initialState: DraxState = {
 export const reducer = (state: DraxState, action: DraxAction): DraxState => {
 	switch (action.type) {
 		case getType(actions.registerView): {
-			const { id } = action.payload;
+			const { id, parentId, scrollPositionRef } = action.payload;
 
 			// Make sure not to duplicate registered view id.
 			const viewIds = state.viewIds.indexOf(id) < 0 ? [...state.viewIds, id] : state.viewIds;
 
-			// Make sure not to overwrite existing view data.
+			// Maintain any existing view data.
 			const existingData = selectViewData(state, id);
 
 			return {
@@ -41,18 +46,13 @@ export const reducer = (state: DraxState, action: DraxAction): DraxState => {
 				viewIds,
 				viewDataById: {
 					...state.viewDataById,
-					...(existingData
-						? {}
-						: {
-							[id]: {
-								protocol: {
-									draggable: false,
-									receptive: false,
-								},
-								activity: createInitialActivity(),
-							},
-						}
-					),
+					[id]: {
+						parentId,
+						scrollPositionRef,
+						protocol: existingData?.protocol ?? createInitialProtocol(),
+						activity: existingData?.activity ?? createInitialActivity(),
+						measurements: existingData?.measurements, // Starts undefined.
+					},
 				},
 			};
 		}
@@ -66,34 +66,12 @@ export const reducer = (state: DraxState, action: DraxAction): DraxState => {
 			};
 		}
 		case getType(actions.updateViewProtocol): {
-			const { id, protocol: protocolProps } = action.payload;
+			const { id, protocol } = action.payload;
 
 			const existingData = selectViewData(state, id);
 			if (!existingData) {
 				return state;
 			}
-
-			// Determine required and coalesced values if not explicitly provided.
-			const protocol: DraxProtocol = {
-				...protocolProps,
-				draggable: protocolProps.draggable ?? (!!protocolProps.dragPayload
-					|| !!protocolProps.payload
-					|| !!protocolProps.onDrag
-					|| !!protocolProps.onDragEnd
-					|| !!protocolProps.onDragEnter
-					|| !!protocolProps.onDragExit
-					|| !!protocolProps.onDragOver
-					|| !!protocolProps.onDragStart
-					|| !!protocolProps.onDragDrop),
-				receptive: protocolProps.receptive ?? (!!protocolProps.receiverPayload
-					|| !!protocolProps.payload
-					|| !!protocolProps.onReceiveDragEnter
-					|| !!protocolProps.onReceiveDragExit
-					|| !!protocolProps.onReceiveDragOver
-					|| !!protocolProps.onReceiveDragDrop),
-				dragPayload: protocolProps.dragPayload ?? protocolProps.payload,
-				receiverPayload: protocolProps.receiverPayload ?? protocolProps.payload,
-			};
 
 			return {
 				...state,
