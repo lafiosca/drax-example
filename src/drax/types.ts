@@ -22,40 +22,78 @@ export interface DraxViewMeasurements {
 	height: number;
 }
 
+/** Data about a Drax event common to all protocol callbacks */
+export interface DraxEventData {
+	/** Position of the drag in screen coordinates */
+	screenPosition: {
+		x: number;
+		y: number;
+	};
+}
+
+/** Data about a Drax drag event that involves a receiver */
+export interface DraxDragWithReceiverEventData extends DraxEventData {
+	receiverPayload: any;
+}
+
+/** Data about a Drax receive event */
+export interface DraxReceiveEventData extends DraxEventData {
+	dragPayload: any;
+}
+
+/** Data about a Drax monitor event */
+export interface DraxMonitorEventData extends DraxEventData {
+	dragPayload: any;
+	receiving: boolean;
+	receiverPayload?: any;
+}
+
 /** Callback protocol for communicating Drax events to views */
 export interface DraxProtocol {
 	/** Called in the dragged view when a drag action begins */
-	onDragStart?: () => void;
+	onDragStart?: (data: DraxEventData) => void;
 
 	/** Called in the dragged view repeatedly while dragged, not over any receiver */
-	onDrag?: () => void;
+	onDrag?: (data: DraxEventData) => void;
 
 	/** Called in the dragged view when dragged onto a new receiver */
-	onDragEnter?: (receiverPayload: any) => void;
+	onDragEnter?: (data: DraxDragWithReceiverEventData) => void;
 
 	/** Called in the dragged view repeatedly while dragged over a receiver */
-	onDragOver?: (receiverPayload: any) => void;
+	onDragOver?: (data: DraxDragWithReceiverEventData) => void;
 
 	/** Called in the dragged view when dragged off of a receiver */
-	onDragExit?: (receiverPayload: any) => void;
+	onDragExit?: (data: DraxDragWithReceiverEventData) => void;
 
 	/** Called in the dragged view when drag ends or is cancelled, not over any receiver */
-	onDragEnd?: () => void;
+	onDragEnd?: (data: DraxEventData) => void;
 
 	/** Called in the dragged view when drag ends over a receiver */
-	onDragDrop?: (receiverPayload: any) => void;
+	onDragDrop?: (data: DraxDragWithReceiverEventData) => void;
 
 	/** Called in the receiver view when an item is dragged onto it */
-	onReceiveDragEnter?: (dragPayload: any) => void;
+	onReceiveDragEnter?: (data: DraxReceiveEventData) => void;
 
 	/** Called in the receiver view repeatedly while an item is dragged over it */
-	onReceiveDragOver?: (dragPayload: any) => void;
+	onReceiveDragOver?: (data: DraxReceiveEventData) => void;
 
 	/** Called in the receiver view when item is dragged off of it or drag is cancelled */
-	onReceiveDragExit?: (dragPayload: any) => void;
+	onReceiveDragExit?: (data: DraxReceiveEventData) => void;
 
 	/** Called in the receiver view when drag ends over it */
-	onReceiveDragDrop?: (dragPayload: any) => void;
+	onReceiveDragDrop?: (data: DraxReceiveEventData) => void;
+
+	/** Called in the monitor view when an item is dragged onto it */
+	onMonitorDragEnter?: (data: DraxMonitorEventData) => void;
+
+	/** Called in the monitor view repeatedly while an item is dragged over it */
+	onMonitorDragOver?: (data: DraxMonitorEventData) => void;
+
+	/** Called in the monitor view when item is dragged off of it or drag is cancelled */
+	onMonitorDragExit?: (data: DraxMonitorEventData) => void;
+
+	/** Called in the monitor view when drag ends over it */
+	onMonitorDragDrop?: (data: DraxMonitorEventData) => void;
 
 	/** When releasing a drag of this view, delay in ms before it snaps back to inactive state */
 	dragReleaseAnimationDelay?: number;
@@ -74,6 +112,9 @@ export interface DraxProtocol {
 
 	/** Whether the view can receive drags */
 	receptive: boolean;
+
+	/** Whether the view can monitor drags */
+	monitoring: boolean;
 }
 
 /** Props for components implementing the protocol */

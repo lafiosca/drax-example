@@ -14,6 +14,7 @@ import { selectViewData } from './selectors';
 const createInitialProtocol = (): DraxProtocol => ({
 	draggable: false,
 	receptive: false,
+	monitoring: false,
 });
 
 const createInitialActivity = (): DraxActivity => ({

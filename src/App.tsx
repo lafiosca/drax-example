@@ -321,6 +321,23 @@ const App = () => {
 							</DraxView>
 						</View>
 					</ScrollView> */}
+					{/* <View style={styles.topRow}>
+						<DraxView dragPayload={{ letter: 'X' }}>
+							<View style={styles.bottomBox}>
+								<Text style={styles.bottomBoxText}>X</Text>
+							</View>
+						</DraxView>
+						<DraxView dragPayload={{ letter: 'Y' }}>
+							<View style={styles.bottomBox}>
+								<Text style={styles.bottomBoxText}>Y</Text>
+							</View>
+						</DraxView>
+						<DraxView dragPayload={{ letter: 'Z' }}>
+							<View style={styles.bottomBox}>
+								<Text style={styles.bottomBoxText}>Z</Text>
+							</View>
+						</DraxView>
+					</View> */}
 					{/* <View style={{ alignItems: 'center' }}>
 						<DraxView dragPayload={{ letter: 'X' }} style={{ borderWidth: 1, borderColor: 'blue' }}>
 							<View style={styles.bottomBox}>
@@ -339,9 +356,20 @@ const App = () => {
 						</DraxView>
 					</View> */}
 					<DraxList
+						style={{ marginTop: 100 }}
+						data={['1', '2', '3', '4', '5', '6', '7', '8', '9']}
+						horizontal
+						renderItem={({ item }) => (
+							<View style={styles.bottomBox}>
+								<Text style={styles.bottomBoxText}>{item}</Text>
+							</View>
+						)}
+						keyExtractor={(item) => item}
+					/>
+					<DraxList
 						data={['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q']}
 						renderItem={({ item }) => (
-							<View collapsable={false} style={styles.bottomBox}>
+							<View style={styles.bottomBox}>
 								<Text style={styles.bottomBoxText}>{item}</Text>
 							</View>
 						)}
@@ -389,6 +417,12 @@ const styles = StyleSheet.create({
 	},
 	receivedText: {
 		marginTop: 8,
+	},
+	topRow: {
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		alignItems: 'center',
+		margin: 30,
 	},
 	bottomRow: {
 		flexDirection: 'row',

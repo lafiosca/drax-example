@@ -279,197 +279,246 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 				console.log(`handleGestureStateChange(${id}, ${JSON.stringify(nativeEvent, null, 2)})`);
 			}
 
+			const dragTracking = dragTrackingRef.current;
+
+			/*
+			 * Case 1: We're already dragging a different view.
+			 * Case 2: This view can't be found/measured.
+			 * Case 3: This is the view we're already dragging.
+			 *   Case 3a: The drag is not ending.
+			 *   Case 3b: The drag is ending.
+			 * Case 4: We're not already dragging a view.
+			 *   Case 4a: This view is not draggable.
+			 *   Case 4b: No drag is starting.
+			 *   Case 4c: A drag is starting.
+			 */
+
+			if (dragTracking && dragTracking.dragged.id !== id) {
+				// Case 1: We're already dragging a different view.
+
+				if (debug) {
+					console.log(`Ignoring gesture state change because another view is being dragged: ${dragTracking.dragged.id}`);
+				}
+				return;
+			}
+
+			const draggedData = getAbsoluteViewData(id);
+
+			if (!draggedData?.absoluteMeasurements) {
+				// Case 2: This view can't be found/measured.
+
+				if (debug) {
+					console.log(`Ignoring gesture for view id ${id} because view data ${draggedData ? 'is not measured' : 'was not found'}`);
+				}
+				return;
+			}
+
 			/*
 			 * Documentation on gesture handler state flow used in switches below:
 			 * https://github.com/kmagiera/react-native-gesture-handler/blob/master/docs/state.md
 			 */
 
-			const dragTracking = dragTrackingRef.current;
+			const {
+				state: gestureState, // Used in switch logic below; see block comment above.
+				x: grabX, // x position of touch relative to dragged view
+				y: grabY, // y position of touch relative to dragged view
+				absoluteX, // x position of touch relative to parent of dragged view
+				absoluteY, // y position of touch relative to parent of dragged view
+			} = nativeEvent;
+
+			const {
+				x: screenX, // x position of dragged view within screen
+				y: screenY, // y position of dragged view within screen
+				width, // width of dragged view
+				height, // height of dragged view
+			} = draggedData.absoluteMeasurements;
+
+			if (dragTracking) {
+				// Case 3: This is the view we're already dragging.
+
+				let endDrag = false;
+				let doDrop = false;
+
+				switch (gestureState) {
+					case State.BEGAN:
+						// This should never happen, but we'll do nothing.
+						if (debug) {
+							console.log(`Received unexpected BEGAN event for dragged view id ${id}`);
+						}
+						break;
+					case State.ACTIVE:
+						// This should also never happen, but we'll do nothing.
+						if (debug) {
+							console.log(`Received unexpected ACTIVE event for dragged view id ${id}`);
+						}
+						break;
+					case State.CANCELLED:
+						// The gesture handler system has cancelled, so end the drag without dropping.
+						if (debug) {
+							console.log(`Stop dragging view id ${id} (CANCELLED)`);
+						}
+						endDrag = true;
+						break;
+					case State.FAILED:
+						// This should never happen, but let's end the drag without dropping.
+						if (debug) {
+							console.log(`Received unexpected FAILED event for dragged view id ${id}`);
+						}
+						endDrag = true;
+						break;
+					case State.END:
+						// User has ended the gesture, so end the drag, dropping into receiver if applicable.
+						if (debug) {
+							console.log(`Stop dragging view id ${id} (END)`);
+						}
+						endDrag = true;
+						doDrop = true;
+						break;
+					default:
+						if (debug) {
+							console.warn(`Unrecognized gesture state ${gestureState} for dragged view`);
+						}
+						break;
+				}
+
+				if (!endDrag) {
+					// Case 3a: The drag is not ending.
+
+					return;
+				}
+
+				// Case 3b: The drag is ending.
+
+				// Get data for receiver view (if any).
+				const receiverData = getViewData(dragTracking.receiver?.id);
+
+				/*
+					* To determine drag position in screen coordinates, we add:
+					*   screen coordinates of drag start
+					*   + translation offset of drag
+					*/
+				const { screenStartPosition, parentStartPosition } = dragTracking;
+				const translation = {
+					x: absoluteX - parentStartPosition.x,
+					y: absoluteY - parentStartPosition.y,
+				};
+				const screenPosition = {
+					x: screenStartPosition.x + translation.x,
+					y: screenStartPosition.y + translation.y,
+				};
+
+				// Reset drag.
+				resetDrag();
+
+				if (doDrop && receiverData) {
+					draggedData?.protocol.onDragDrop?.({
+						screenPosition,
+						receiverPayload: receiverData.protocol.receiverPayload,
+					});
+					receiverData.protocol.onReceiveDragDrop?.({
+						screenPosition,
+						dragPayload: draggedData.protocol.dragPayload,
+					});
+				} else {
+					draggedData?.protocol.onDragEnd?.({ screenPosition });
+					receiverData?.protocol.onReceiveDragExit?.({
+						screenPosition,
+						dragPayload: draggedData?.protocol.dragPayload,
+					});
+				}
+
+				return;
+			}
+
+			// Case 4: We're not already dragging a view.
+
+			if (!draggedData.protocol.draggable) {
+				// Case 4a: This view is not draggable.
+
+				if (debug) {
+					console.log(`Ignoring gesture for undraggable view id ${id}`);
+				}
+				return;
+			}
+
+			let startDrag = false;
+
+			switch (gestureState) {
+				case State.ACTIVE:
+					startDrag = true;
+					break;
+				case State.BEGAN:
+					// Do nothing until the gesture becomes active.
+					break;
+				case State.CANCELLED:
+				case State.FAILED:
+				case State.END:
+					// Do nothing because we weren't tracking this gesture.
+					break;
+				default:
+					if (debug) {
+						console.warn(`Unrecognized gesture state ${gestureState} for non-dragged view id ${id}`);
+					}
+					break;
+			}
+
+			if (!startDrag) {
+				// Case 4b: No drag is starting.
+
+				return;
+			}
+
+			// Case 4c: A drag is starting.
 
 			/*
-			 * Case 1: We're already dragging a different view.
-			 * Case 2: This is the view we're already dragging.
-			 * Case 3: We're not already dragging a view.
-			 */
-			if (dragTracking) {
-				const draggedId = dragTracking.dragged.id;
-				if (draggedId !== id) {
-					// Case 1: We're already dragging a different view.
-
-					if (debug) {
-						console.log(`Ignoring gesture state change because another view is being dragged: ${draggedId}`);
-					}
-				} else {
-					// Case 2: This is the view we're already dragging.
-
-					let endDrag = false;
-					let doDrop = false;
-
-					switch (nativeEvent.state) {
-						case State.BEGAN:
-							// This should never happen, but we'll do nothing.
-							if (debug) {
-								console.log(`Received unexpected BEGAN event for dragged view id ${id}`);
-							}
-							break;
-						case State.ACTIVE:
-							// This should also never happen, but we'll do nothing.
-							if (debug) {
-								console.log(`Received unexpected ACTIVE event for dragged view id ${id}`);
-							}
-							break;
-						case State.CANCELLED:
-							// The gesture handler system has cancelled, so end the drag without dropping.
-							if (debug) {
-								console.log(`Stop dragging view id ${id} (CANCELLED)`);
-							}
-							endDrag = true;
-							break;
-						case State.FAILED:
-							// This should never happen, but let's end the drag without dropping.
-							if (debug) {
-								console.log(`Received unexpected FAILED event for dragged view id ${id}`);
-							}
-							endDrag = true;
-							break;
-						case State.END:
-							// User has ended the gesture, so end the drag, dropping into receiver if applicable.
-							if (debug) {
-								console.log(`Stop dragging view id ${id} (END)`);
-							}
-							endDrag = true;
-							doDrop = true;
-							break;
-						default:
-							if (debug) {
-								console.warn(`Unrecognized gesture state ${nativeEvent.state} for dragged view`);
-							}
-							break;
-					}
-
-					if (endDrag) {
-						// Get data for dragged and receiver views (if any)
-						const draggedData = getViewData(draggedId);
-						const receiverData = getViewData(dragTracking.receiver?.id);
-
-						// Reset drag
-						resetDrag();
-
-						if (doDrop && receiverData) {
-							draggedData?.protocol.onDragDrop?.(receiverData.protocol.receiverPayload);
-							receiverData.protocol.onReceiveDragDrop?.(draggedData?.protocol.dragPayload);
-						} else {
-							draggedData?.protocol.onDragEnd?.();
-							receiverData?.protocol.onReceiveDragExit?.(draggedData?.protocol.dragPayload);
-						}
-					}
+			* First, verify that the touch is still within the dragged view.
+			* Because we are using a LongPressGestureHandler with unlimited
+			* distance to handle the drag, it could be out of bounds before
+			* it even starts. (For some reason, LongPressGestureHandler does
+			* not provide us with a BEGAN state change event in iOS.)
+			*/
+			if (grabX >= 0 && grabY >= 0 && grabX <= width && grabY <= height) {
+				/*
+				* To determine drag start position in screen coordinates, we add:
+				*   screen coordinates of dragged view
+				*   + relative coordinates of touch within view
+				*
+				* NOTE: if view is already transformed, these will be wrong.
+				*/
+				const screenPosition = {
+					x: screenX + grabX,
+					y: screenY + grabY,
+				};
+				const parentStartPosition = {
+					x: absoluteX,
+					y: absoluteY,
+				};
+				const {
+					activity: { dragOffset },
+					protocol: {
+						dragReleaseAnimationDelay = defaultDragReleaseAnimationDelay,
+						dragReleaseAnimationDuration = defaultDragReleaseAnimationDuration,
+					},
+				} = draggedData;
+				dragTrackingRef.current = {
+					screenStartPosition: screenPosition,
+					parentStartPosition,
+					dragged: {
+						id,
+						dragOffset,
+						dragReleaseAnimationDelay,
+						dragReleaseAnimationDuration,
+					},
+					// No receiver yet
+				};
+				if (debug) {
+					console.log(`Start dragging view id ${id} at screen position (${screenPosition.x}, ${screenPosition.y})`);
 				}
-			} else {
-				// Case 3: We're not already dragging a view.
-
-				const draggedData = getAbsoluteViewData(id);
-
-				if (!draggedData) {
-					if (debug) {
-						console.log(`Ignoring gesture for view id ${id} because view data was not found`);
-					}
-				} else if (!draggedData.absoluteMeasurements) {
-					if (debug) {
-						console.log(`Ignoring gesture for view id ${id} because view is not measured`);
-					}
-				} else if (!draggedData.protocol.draggable) {
-					if (debug) {
-						console.log(`Ignoring gesture for undraggable view id ${id}`);
-					}
-				} else {
-					let startDrag = false;
-
-					switch (nativeEvent.state) {
-						case State.ACTIVE:
-							startDrag = true;
-							break;
-						case State.BEGAN:
-							// Do nothing until the gesture becomes active.
-							break;
-						case State.CANCELLED:
-						case State.FAILED:
-						case State.END:
-							// Do nothing because we weren't tracking this gesture.
-							break;
-						default:
-							if (debug) {
-								console.warn(`Unrecognized gesture state ${nativeEvent.state} for non-dragged view id ${id}`);
-							}
-							break;
-					}
-
-					if (startDrag) {
-						const {
-							x: screenX, // x position of dragged view within screen
-							y: screenY, // y position of dragged view within screen
-							width, // width of dragged view
-							height, // height of dragged view
-						} = draggedData.absoluteMeasurements;
-						const {
-							x: grabX, // x position of touch relative to dragged view
-							y: grabY, // y position of touch relative to dragged view
-							absoluteX, // x position of touch relative to parent of dragged view
-							absoluteY, // y position of touch relative to parent of dragged view
-						} = nativeEvent;
-
-						/*
-						 * First, verify that the touch is still within the dragged view.
-						 * Because we are using a LongPressGestureHandler with unlimited
-						 * distance to handle the drag, it could be out of bounds before
-						 * it even starts. (For some reason, LongPressGestureHandler does
-						 * not provide us with a BEGAN state change event in iOS.)
-						 */
-						if (grabX >= 0 && grabY >= 0 && grabX <= width && grabY <= height) {
-							/*
-							* To determine drag start position in screen coordinates, we add:
-							*   screen coordinates of dragged view
-							*   + relative coordinates of touch within view
-							*
-							* NOTE: if view is already transformed, these will be wrong.
-							*/
-							const screenStartPosition = {
-								x: screenX + grabX,
-								y: screenY + grabY,
-							};
-							const parentStartPosition = {
-								x: absoluteX,
-								y: absoluteY,
-							};
-							const {
-								activity: { dragOffset },
-								protocol: {
-									dragReleaseAnimationDelay = defaultDragReleaseAnimationDelay,
-									dragReleaseAnimationDuration = defaultDragReleaseAnimationDuration,
-								},
-							} = draggedData;
-							dragTrackingRef.current = {
-								screenStartPosition,
-								parentStartPosition,
-								dragged: {
-									id,
-									dragOffset,
-									dragReleaseAnimationDelay,
-									dragReleaseAnimationDuration,
-								},
-								// No receiver yet
-							};
-							if (debug) {
-								console.log(`Start dragging view id ${id} at screen position (${screenStartPosition.x}, ${screenStartPosition.y})`);
-							}
-							draggedData.protocol.onDragStart?.();
-							updateActivity({
-								id,
-								activity: { dragState: DraxDraggedViewState.Dragging },
-							});
-							// TODO: remove? dragOffset.setValue({ x: 0, y: 0 });
-						}
-					}
-				}
+				draggedData.protocol.onDragStart?.({ screenPosition });
+				updateActivity({
+					id,
+					activity: { dragState: DraxDraggedViewState.Dragging },
+				});
 			}
 		},
 		[
@@ -522,7 +571,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 				x: nativeEvent.absoluteX - parentStartPosition.x,
 				y: nativeEvent.absoluteY - parentStartPosition.y,
 			};
-			const dragScreen = {
+			const screenPosition = {
 				x: screenStartPosition.x + translation.x,
 				y: screenStartPosition.y + translation.y,
 			};
@@ -532,10 +581,10 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 				console.log(`Dragged item screen coordinates (${draggedMeasurements?.x}, ${draggedMeasurements?.y})`);
 				console.log(`Native event in-view touch coordinates: (${nativeEvent.x}, ${nativeEvent.y})`);
 				console.log(`Drag translation (${translation.x}, ${translation.y})`);
-				console.log(`Drag at screen coordinates (${dragScreen.x}, ${dragScreen.y})\n`);
+				console.log(`Drag at screen coordinates (${screenPosition.x}, ${screenPosition.y})\n`);
 			}
 
-			const receiver = findReceiver(dragScreen.x, dragScreen.y, draggedId);
+			const receiver = findReceiver(screenPosition.x, screenPosition.y, draggedId);
 			const oldReceiverId = dragTracking.receiver?.id;
 
 			// Always update the drag animation offset.
@@ -551,11 +600,13 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			 */
 
 			const draggedProtocol = draggedData.protocol;
+			const { dragPayload } = draggedProtocol;
 			const activities: UpdateActivityPayload[] = [];
 
 			if (receiver) {
 				const { id: receiverId, data: receiverData } = receiver;
 				const receiverProtocol = receiverData.protocol;
+				const { receiverPayload } = receiverProtocol;
 
 				const {
 					x: receiverScreenX,
@@ -564,15 +615,15 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 
 				// Update the current receiver animation offset.
 				receiverData.activity.receiverOffset.setValue({
-					x: dragScreen.x - receiverScreenX,
-					y: dragScreen.y - receiverScreenY,
+					x: screenPosition.x - receiverScreenX,
+					y: screenPosition.y - receiverScreenY,
 				});
 
 				// Prepare dragged activity update, if necessary.
-				if (draggedData.activity.draggingOverReceiverPayload !== receiverProtocol.receiverPayload) {
+				if (draggedData.activity.draggingOverReceiverPayload !== receiverPayload) {
 					activities.push({
 						id: draggedId,
-						activity: { draggingOverReceiverPayload: receiverProtocol.receiverPayload },
+						activity: { draggingOverReceiverPayload: receiverPayload },
 					});
 				}
 
@@ -581,8 +632,14 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 						// Case 1: new exists, old exists, new is the same as old
 
 						// Call the protocol event callbacks for dragging over the receiver.
-						draggedProtocol.onDragOver?.(receiverProtocol.receiverPayload);
-						receiverProtocol.onReceiveDragOver?.(draggedProtocol.dragPayload);
+						draggedProtocol.onDragOver?.({
+							screenPosition,
+							receiverPayload,
+						});
+						receiverProtocol.onReceiveDragOver?.({
+							screenPosition,
+							dragPayload,
+						});
 
 						// Prepare receiver activity update, if necessary.
 						if (receiverData.activity.receivingDragPayload !== draggedProtocol.dragPayload) {
@@ -603,12 +660,24 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 
 						// Call the protocol event callbacks for exiting the old receiver...
 						const oldReceiverProtocol = getViewData(oldReceiverId)?.protocol;
-						draggedProtocol.onDragExit?.(oldReceiverProtocol?.receiverPayload);
-						oldReceiverProtocol?.onReceiveDragExit?.(draggedProtocol.dragPayload);
+						draggedProtocol.onDragExit?.({
+							screenPosition,
+							receiverPayload: oldReceiverProtocol?.receiverPayload,
+						});
+						oldReceiverProtocol?.onReceiveDragExit?.({
+							screenPosition,
+							dragPayload,
+						});
 
 						// ...and entering the new receiver.
-						draggedProtocol.onDragEnter?.(receiverProtocol?.receiverPayload);
-						receiverProtocol.onReceiveDragEnter?.(draggedProtocol.dragPayload);
+						draggedProtocol.onDragEnter?.({
+							screenPosition,
+							receiverPayload,
+						});
+						receiverProtocol.onReceiveDragEnter?.({
+							screenPosition,
+							dragPayload,
+						});
 
 						// Prepare receiver activity update for old receiver...
 						activities.push({
@@ -638,8 +707,14 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 					};
 
 					// Call the protocol event callbacks for entering the new receiver.
-					draggedProtocol.onDragEnter?.(receiverProtocol?.receiverPayload);
-					receiverProtocol.onReceiveDragEnter?.(draggedProtocol.dragPayload);
+					draggedProtocol.onDragEnter?.({
+						screenPosition,
+						receiverPayload,
+					});
+					receiverProtocol.onReceiveDragEnter?.({
+						screenPosition,
+						dragPayload,
+					});
 
 					// Prepare receiver activity update for new receiver.
 					activities.push({
@@ -658,13 +733,19 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 
 				// Call the protocol event callbacks for exiting the old receiver.
 				const oldReceiverProtocol = getViewData(oldReceiverId)?.protocol;
-				draggedProtocol.onDragExit?.(oldReceiverProtocol?.receiverPayload);
-				oldReceiverProtocol?.onReceiveDragExit?.(draggedProtocol.dragPayload);
+				draggedProtocol.onDragExit?.({
+					screenPosition,
+					receiverPayload: oldReceiverProtocol?.receiverPayload,
+				});
+				oldReceiverProtocol?.onReceiveDragExit?.({
+					screenPosition,
+					dragPayload,
+				});
 			} else {
 				// Case 5: new does not exist, old does not exist
 
 				// Call the protocol event callback for dragging.
-				draggedProtocol.onDrag?.();
+				draggedProtocol.onDrag?.({ screenPosition });
 			}
 
 			// If there are any updates queued, dispatch them now.

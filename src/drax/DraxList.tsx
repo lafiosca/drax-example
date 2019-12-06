@@ -22,6 +22,7 @@ export const DraxList = <T extends unknown>(
 	{
 		renderItem,
 		data,
+		style,
 		id: idProp,
 		...props
 	}: PropsWithChildren<DraxListProps<T>>,
@@ -51,8 +52,8 @@ export const DraxList = <T extends unknown>(
 			return (
 				<DraxView
 					payload={{ id, index }}
-					onDragDrop={(payload: any) => {
-						console.log(`Dragged ${index} onto ${payload.index}`);
+					onDragDrop={({ screenPosition, receiverPayload }) => {
+						console.log(`Dragged [${id}: ${index}] onto [${receiverPayload.id}: ${receiverPayload.index}] at (${screenPosition.x}, ${screenPosition.y})`);
 					}}
 					draggingStyle={{ backgroundColor: 'red' }}
 					receivingStyle={{ backgroundColor: 'magenta' }}
@@ -67,7 +68,6 @@ export const DraxList = <T extends unknown>(
 
 	const onScroll = useCallback(
 		({ nativeEvent: { contentOffset } }: NativeSyntheticEvent<NativeScrollEvent>) => {
-			console.log(`Scrolled to ${JSON.stringify(contentOffset, null, 2)}`);
 			scrollPositionRef.current = { ...contentOffset };
 		},
 		[],
@@ -77,6 +77,7 @@ export const DraxList = <T extends unknown>(
 		<DraxView
 			id={id}
 			scrollPositionRef={scrollPositionRef}
+			style={style}
 		>
 			<FlatList
 				ref={(ref) => { nodeHandleRef.current = ref && findNodeHandle(ref); }}

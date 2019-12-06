@@ -41,6 +41,10 @@ export const DraxView = (
 		onReceiveDragOver,
 		onReceiveDragExit,
 		onReceiveDragDrop,
+		onMonitorDragEnter,
+		onMonitorDragOver,
+		onMonitorDragExit,
+		onMonitorDragDrop,
 		dragReleaseAnimationDelay,
 		dragReleaseAnimationDuration,
 		payload,
@@ -66,6 +70,7 @@ export const DraxView = (
 		id: idProp,
 		draggable: draggableProp,
 		receptive: receptiveProp,
+		monitoring: monitoringProp,
 		...props
 	}: PropsWithChildren<DraxViewProps>,
 ): ReactElement => {
@@ -87,6 +92,12 @@ export const DraxView = (
 		|| !!onReceiveDragExit
 		|| !!onReceiveDragOver
 		|| !!onReceiveDragDrop
+	);
+	const monitoring = monitoringProp ?? (
+		!!onMonitorDragEnter
+		|| !!onMonitorDragExit
+		|| !!onMonitorDragOver
+		|| !!onMonitorDragDrop
 	);
 
 	const parentId = parent && parent.id;
@@ -163,6 +174,7 @@ export const DraxView = (
 						dragReleaseAnimationDuration,
 						draggable,
 						receptive,
+						monitoring,
 						dragPayload: dragPayload ?? payload,
 						receiverPayload: receiverPayload ?? payload,
 					},
@@ -190,6 +202,7 @@ export const DraxView = (
 			receiverPayload,
 			draggable,
 			receptive,
+			monitoring,
 		],
 	);
 
