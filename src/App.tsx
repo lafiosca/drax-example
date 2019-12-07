@@ -274,11 +274,11 @@ const App = () => {
 							dragReleasedStyle={styles.dragReleaseHighlight}
 							receivingStyle={styles.receiveHighlight}
 							draggable
-							onReceiveDragDrop={({ dragPayload }: { dragPayload: Cargo }) => {
-								console.log(`green received drop: ${JSON.stringify(dragPayload, null, 2)}`);
+							onReceiveDragDrop={({ dragged: { payload } }) => {
+								console.log(`green received drop: ${JSON.stringify(payload, null, 2)}`);
 								setGreenReceived([
 									...greenReceived,
-									dragPayload.letter ?? dragPayload.boxName ?? '?',
+									payload.letter ?? payload.boxName ?? '?',
 								]);
 							}}
 							dragReleaseAnimationDelay={500}
@@ -291,11 +291,11 @@ const App = () => {
 						<DraxView
 							style={styles.yellowBox}
 							receivingStyle={styles.receiveHighlight}
-							onReceiveDragDrop={({ dragPayload }: { dragPayload: Cargo }) => {
-								console.log(`yellow received drop: ${JSON.stringify(dragPayload, null, 2)}`);
+							onReceiveDragDrop={({ dragged: { payload } }) => {
+								console.log(`yellow received drop: ${JSON.stringify(payload, null, 2)}`);
 								setYellowReceived([
 									...yellowReceived,
-									dragPayload.letter ?? dragPayload.boxName ?? '?',
+									payload.letter ?? payload.boxName ?? '?',
 								]);
 							}}
 							receiverPayload={{ boxName: 'yellow' }}

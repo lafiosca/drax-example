@@ -17,7 +17,7 @@ import uuid from 'uuid/v4';
 import { useDrax } from './useDrax';
 import {
 	DraxViewProps,
-	AnimatedViewRef as AnimatedViewRefType,
+	AnimatedViewRefType,
 	DraxDraggedViewState,
 	DraxReceiverViewState,
 } from './types';
@@ -74,6 +74,7 @@ export const DraxView = (
 		...props
 	}: PropsWithChildren<DraxViewProps>,
 ): ReactElement => {
+	// Coalesce protocol props into capabilities.
 	const draggable = draggableProp ?? (
 		!!dragPayload
 		|| !!payload
@@ -100,10 +101,17 @@ export const DraxView = (
 		|| !!onMonitorDragDrop
 	);
 
+	// The parent Drax view id, if it exists.
 	const parentId = parent && parent.id;
 
-	const [id, setId] = useState(''); // The unique identifer for this view, initialized below.
-	const ref = useRef<AnimatedViewRefType>(null); // Ref to the underlying Animated.View, used for measuring.
+	// The unique identifer for this view, initialized below.
+	const [id, setId] = useState('');
+
+	// The underlying Animated.View, for measuring.
+	const viewRef = useRef<AnimatedViewRefType>(null);
+
+	// The most recent gesture nativeEvent, for debouncing.
+	const lastGestureRef = useRef<LongPressGestureHandlerGestureEvent['nativeEvent'] | undefined>(undefined);
 
 	// Connect with Drax.
 	const {
@@ -214,21 +222,42 @@ export const DraxView = (
 
 	// Connect gesture event handling into Drax context, tied to this id.
 	const onGestureEvent = useCallback(
-		(event: LongPressGestureHandlerGestureEvent) => handleGestureEvent(id, event),
+		(event: LongPressGestureHandlerGestureEvent) => {
+			const gesture = event.nativeEvent;
+			const lastGesture = lastGestureRef.current;
+
+			// Check if this event is the same as the last.
+			if (lastGesture) {
+				const {
+					absoluteX: lastX,
+					absoluteY: lastY,
+				} = lastGesture;
+				const { absoluteX, absoluteY } = gesture;
+				if (absoluteX === lastX && absoluteY === lastY) {
+					// This is the same as the previous event, skip it.
+					return;
+				}
+			}
+
+			// Update the previous value.
+			lastGestureRef.current = gesture;
+
+			// Pass the event up to the Drax context.
+			handleGestureEvent(id, event);
+		},
 		[id, handleGestureEvent],
 	);
 
 	// Report our measurements to Drax context.
 	const updateMeasurements = useCallback(
 		(x, y, width, height) => {
-			console.log(`updateMeasurements: ${x}, ${y}, ${width}, ${height}`);
 			/*
-				* In certain cases (on Android), all of these values can be
-				* undefined when the view is not on screen; This should not
-				* happen with the measurement functions we're using, but just
-				* for the sake of paranoia, we'll check and send undefined
-				* for the entire measurements object.
-				*/
+			 * In certain cases (on Android), all of these values can be
+			 * undefined when the view is not on screen; This should not
+			 * happen with the measurement functions we're using, but just
+			 * for the sake of paranoia, we'll check and send undefined
+			 * for the entire measurements object.
+			 */
 			measureView({
 				id,
 				measurements: (height === undefined
@@ -251,7 +280,7 @@ export const DraxView = (
 	 */
 	const measure = useCallback(
 		() => {
-			const view = ref.current?.getNode();
+			const view = viewRef.current?.getNode();
 			if (parent) {
 				const nodeHandle = parent.nodeHandleRef.current;
 				if (nodeHandle) {
@@ -266,7 +295,7 @@ export const DraxView = (
 					console.log('No parent nodeHandle to measure drax view in relation to');
 				}
 			} else {
-				ref.current?.getNode().measureInWindow(updateMeasurements);
+				viewRef.current?.getNode().measureInWindow(updateMeasurements);
 			}
 		},
 		[parent, updateMeasurements],
@@ -347,7 +376,7 @@ export const DraxView = (
 		>
 			<Animated.View
 				{...props}
-				ref={ref}
+				ref={viewRef}
 				style={styles}
 				onLayout={measure}
 				collapsable={false}

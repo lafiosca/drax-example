@@ -31,21 +31,34 @@ export interface DraxEventData {
 	};
 }
 
+/** Data about a view involved in a Drax event */
+export interface DraxEventViewData {
+	/** The view's id */
+	id: string;
+	/** The view's parent id, if any */
+	parentId?: string;
+	/** The view's payload for this event */
+	payload: any;
+}
+
 /** Data about a Drax drag event that involves a receiver */
 export interface DraxDragWithReceiverEventData extends DraxEventData {
-	receiverPayload: any;
+	/** The receiver for the drag event */
+	receiver: DraxEventViewData;
 }
 
 /** Data about a Drax receive event */
 export interface DraxReceiveEventData extends DraxEventData {
-	dragPayload: any;
+	/** The dragged view for the receive event */
+	dragged: DraxEventViewData;
 }
 
 /** Data about a Drax monitor event */
 export interface DraxMonitorEventData extends DraxEventData {
-	dragPayload: any;
-	receiving: boolean;
-	receiverPayload?: any;
+	/** The dragged view for the monitor event */
+	dragged: DraxEventViewData;
+	/** The receiver for the monitor event */
+	receiver?: DraxEventViewData;
 }
 
 /** Callback protocol for communicating Drax events to views */
@@ -157,18 +170,18 @@ export interface DraxActivity {
 	receivingDragPayload?: any;
 }
 
-/** Scroll position used when tracking nested views */
-export interface ScrollPosition {
+/** An xy-coordinate position value */
+export interface Position {
 	x: number;
 	y: number;
 }
 
 /** Information about a view maintained in the Drax provider state */
-export interface DraxStateViewData {
+export interface DraxViewData {
 	/** The view's parent drax view id, if nested */
 	parentId?: string;
 	/** The view's scroll position ref, if it is a scrollable parent view */
-	scrollPositionRef?: RefObject<ScrollPosition>;
+	scrollPositionRef?: RefObject<Position>;
 	/** The view's protocol callbacks and data */
 	protocol: DraxProtocol;
 	/** The view's current drag/receive activity for use in the view */
@@ -177,11 +190,22 @@ export interface DraxStateViewData {
 	measurements?: DraxViewMeasurements;
 }
 
+/** Information about a view, plus its clipped absolute measurements */
+export interface DraxAbsoluteViewData extends DraxViewData {
+	absoluteMeasurements: DraxViewMeasurements;
+}
+
+/** Combination of a view id and absolute data */
+export interface DraxFoundView {
+	id: string;
+	data: DraxAbsoluteViewData;
+}
+
 /** Drax provider state for use in reducer; tracks all registered views */
 export interface DraxState {
 	viewIds: string[];
 	viewDataById: {
-		[id: string]: DraxStateViewData;
+		[id: string]: DraxViewData;
 	};
 }
 
@@ -192,7 +216,7 @@ export interface RegisterViewPayload {
 	/** The view's parent drax view id, if nested */
 	parentId?: string;
 	/** The view's scroll position ref, if it is a scrollable parent view */
-	scrollPositionRef?: RefObject<ScrollPosition>;
+	scrollPositionRef?: RefObject<Position>;
 }
 
 /** Payload for unregistering a Drax view */
@@ -273,7 +297,7 @@ export interface DraxTrackingStatus {
 
 /** Context value used internally by Drax provider */
 export interface DraxContextValue {
-	getViewData: (id: string) => DraxStateViewData | undefined;
+	getViewData: (id: string) => DraxViewData | undefined;
 	getTrackingStatus: () => DraxTrackingStatus;
 	registerView: (payload: RegisterViewPayload) => void;
 	unregisterView: (payload: UnregisterViewPayload) => void;
@@ -284,7 +308,7 @@ export interface DraxContextValue {
 }
 
 /** Type workaround for lack of Animated.View type, used in DraxView */
-export interface AnimatedViewRef {
+export interface AnimatedViewRefType {
 	getNode: () => View;
 }
 
@@ -352,7 +376,7 @@ export interface DraxViewProps extends DraxProtocolProps, ViewProps {
 	parent?: DraxViewParent;
 
 	/** The view's scroll position ref, if it is a scrollable parent view */
-	scrollPositionRef?: RefObject<ScrollPosition>;
+	scrollPositionRef?: RefObject<Position>;
 
 	/** Time in milliseconds view needs to be pressed before drag starts */
 	longPressDelay?: number;
