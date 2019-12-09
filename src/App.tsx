@@ -252,7 +252,7 @@ const App = () => {
 					/>
 				</View> */}
 				<DraxProvider>
-					<ScrollView>
+					{/* <ScrollView>
 						<DraxView
 							style={styles.blueBox}
 							draggingStyle={styles.dragHighlight}
@@ -323,7 +323,7 @@ const App = () => {
 								</View>
 							</DraxView>
 						</View>
-					</ScrollView>
+					</ScrollView> */}
 					{/* <View style={styles.topRow}>
 						<DraxView dragPayload={{ letter: 'X' }}>
 							<View style={styles.bottomBox}>
@@ -369,8 +369,9 @@ const App = () => {
 						)}
 						keyExtractor={(item) => item}
 					/> */}
-					{/* <DraxList
+					<DraxList
 						style={{ flex: 1 }}
+						// data={['A', 'B', 'C']}
 						data={['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q']}
 						renderItem={({ item }) => (
 							<View style={styles.bottomBox}>
@@ -378,7 +379,7 @@ const App = () => {
 							</View>
 						)}
 						keyExtractor={(item) => item}
-					/> */}
+					/>
 				</DraxProvider>
 			</View>
 		</>

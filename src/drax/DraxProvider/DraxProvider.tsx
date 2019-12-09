@@ -9,12 +9,12 @@ import { Animated } from 'react-native';
 import {
 	State,
 	LongPressGestureHandlerStateChangeEvent,
-	LongPressGestureHandlerGestureEvent,
 } from 'react-native-gesture-handler';
 
 import { reducer, initialState } from './reducer';
 import { actions } from './actions';
 import {
+	LongPressGestureHandlerGestureEvent,
 	DraxProviderProps,
 	DraxTracking,
 	UpdateActivityPayload,
@@ -30,7 +30,6 @@ import {
 	DraxViewData,
 	DraxFoundView,
 	DraxViewMeasurements,
-	DraxMonitorEventData,
 	Position,
 } from '../types';
 import {
@@ -655,7 +654,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 	);
 
 	const handleGestureEvent = useCallback(
-		(id: string, { nativeEvent }: LongPressGestureHandlerGestureEvent) => {
+		(id: string, nativeEvent: LongPressGestureHandlerGestureEvent['nativeEvent']) => {
 			if (debug) {
 				console.log(`handleGestureEvent(${id}, ${JSON.stringify(nativeEvent, null, 2)})`);
 			}

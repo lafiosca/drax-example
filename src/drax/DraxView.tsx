@@ -9,13 +9,14 @@ import React, {
 import { Animated } from 'react-native';
 import {
 	LongPressGestureHandlerStateChangeEvent,
-	LongPressGestureHandlerGestureEvent,
 	LongPressGestureHandler,
 } from 'react-native-gesture-handler';
 import uuid from 'uuid/v4';
+import throttle from 'lodash.throttle';
 
 import { useDrax } from './useDrax';
 import {
+	LongPressGestureHandlerGestureEvent,
 	DraxViewProps,
 	AnimatedViewRefType,
 	DraxDraggedViewState,
@@ -109,9 +110,6 @@ export const DraxView = (
 
 	// The underlying Animated.View, for measuring.
 	const viewRef = useRef<AnimatedViewRefType>(null);
-
-	// The most recent gesture nativeEvent, for debouncing.
-	const lastGestureRef = useRef<LongPressGestureHandlerGestureEvent['nativeEvent'] | undefined>(undefined);
 
 	// Connect with Drax.
 	const {
@@ -228,32 +226,22 @@ export const DraxView = (
 		[id, handleGestureStateChange],
 	);
 
-	// Connect gesture event handling into Drax context, tied to this id.
-	const onGestureEvent = useCallback(
-		(event: LongPressGestureHandlerGestureEvent) => {
-			const gesture = event.nativeEvent;
-			const lastGesture = lastGestureRef.current;
-
-			// Check if this event is the same as the last.
-			if (lastGesture) {
-				const {
-					absoluteX: lastX,
-					absoluteY: lastY,
-				} = lastGesture;
-				const { absoluteX, absoluteY } = gesture;
-				if (absoluteX === lastX && absoluteY === lastY) {
-					// This is the same as the previous event, skip it.
-					return;
-				}
-			}
-
-			// Update the previous value.
-			lastGestureRef.current = gesture;
-
-			// Pass the event up to the Drax context.
-			handleGestureEvent(id, event);
-		},
+	// Create throttled gesture event handler, tied to this id.
+	const throttledHandleGestureEvent = useCallback(
+		throttle(
+			(nativeEvent: LongPressGestureHandlerGestureEvent['nativeEvent']) => {
+				// Pass the event up to the Drax context.
+				handleGestureEvent(id, nativeEvent);
+			},
+			33,
+		),
 		[id, handleGestureEvent],
+	);
+
+	// Connect gesture event handling into Drax context, extracting nativeEvent.
+	const onGestureEvent = useCallback(
+		(event: LongPressGestureHandlerGestureEvent) => throttledHandleGestureEvent(event.nativeEvent),
+		[throttledHandleGestureEvent],
 	);
 
 	// Report our measurements to Drax context.
@@ -379,7 +367,7 @@ export const DraxView = (
 			shouldCancelWhenOutside={false}
 			minDurationMs={longPressDelay}
 			onHandlerStateChange={onHandlerStateChange}
-			onGestureEvent={onGestureEvent}
+			onGestureEvent={onGestureEvent as any /* Workaround incorrect typings. */}
 			enabled={draggable}
 		>
 			<Animated.View

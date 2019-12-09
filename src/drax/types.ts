@@ -6,9 +6,16 @@ import {
 	FlatListProperties,
 } from 'react-native';
 import {
-	LongPressGestureHandlerGestureEvent,
 	LongPressGestureHandlerStateChangeEvent,
+	GestureHandlerGestureEvent,
+	GestureHandlerGestureEventNativeEvent,
+	LongPressGestureHandlerEventExtra,
 } from 'react-native-gesture-handler';
+
+/** Workaround for incorrect typings. See: https://github.com/kmagiera/react-native-gesture-handler/pull/860/files */
+export interface LongPressGestureHandlerGestureEvent extends GestureHandlerGestureEvent {
+	nativeEvent: GestureHandlerGestureEventNativeEvent & LongPressGestureHandlerEventExtra;
+}
 
 /** Measurements of a Drax view for bounds checking purposes */
 export interface DraxViewMeasurements {
@@ -332,7 +339,7 @@ export interface DraxContextValue {
 	updateViewProtocol: (payload: UpdateViewProtocolPayload) => void;
 	measureView: (payload: MeasureViewPayload) => void;
 	handleGestureStateChange: (id: string, event: LongPressGestureHandlerStateChangeEvent) => void;
-	handleGestureEvent: (id: string, event: LongPressGestureHandlerGestureEvent) => void;
+	handleGestureEvent: (id: string, nativeEvent: LongPressGestureHandlerGestureEvent['nativeEvent']) => void;
 }
 
 /** Type workaround for lack of Animated.View type, used in DraxView */
@@ -413,4 +420,12 @@ export interface DraxViewProps extends DraxProtocolProps, ViewProps {
 export interface DraxListProps<TItem> extends FlatListProperties<TItem> {
 	/** Unique drax view id, auto-generated if omitted */
 	id?: string;
+}
+
+export enum DraxListScrollState {
+	BackFast = -2,
+	BackSlow = -1,
+	Inactive = 0,
+	ForwardSlow = 1,
+	ForwardFast = 2,
 }
