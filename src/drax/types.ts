@@ -285,6 +285,8 @@ export interface DraxTracking {
 		/** Animation offset of the current drag position relative to the receiver view */
 		receiverOffset: Animated.ValueXY;
 	};
+	/** A list of ids of monitors that the drag is currently over */
+	monitorIds: string[];
 }
 
 /** Tracking status for reference in views */

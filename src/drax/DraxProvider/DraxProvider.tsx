@@ -40,7 +40,10 @@ import { DraxContext } from '../DraxContext';
 import { clipMeasurements, isPointInside } from '../math';
 
 export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = false, children }) => {
+	// Primary state reducer for registering views and storing view data.
 	const [state, dispatch] = useReducer(reducer, initialState);
+
+	// Information about currently tracked drag, if any.
 	const dragTrackingRef = useRef<DraxTracking | undefined>(undefined);
 
 	const getViewData = useCallback(
@@ -464,6 +467,24 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 							payload: draggedData.protocol.dragPayload,
 						},
 					});
+					if (dragTracking.monitorIds.length > 0) {
+						const monitorEventData: DraxMonitorEventData = {
+							screenPosition,
+							dragged: {
+								id,
+								parentId: draggedData.parentId,
+								payload: draggedData.protocol.dragPayload,
+							},
+							receiver: {
+								id: receiverId!,
+								parentId: receiverData.parentId,
+								payload: receiverData.protocol.receiverPayload,
+							},
+						};
+						dragTracking.monitorIds.forEach((monitorId) => {
+							getViewData(monitorId)?.protocol.onMonitorDragDrop?.(monitorEventData);
+						});
+					}
 				} else {
 					// There is no receiver, or the drag was cancelled.
 
@@ -479,6 +500,20 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 							payload: draggedData.protocol.dragPayload,
 						},
 					});
+
+					if (dragTracking.monitorIds.length > 0) {
+						const monitorEventData: DraxMonitorEventData = {
+							screenPosition,
+							dragged: {
+								id,
+								parentId: draggedData.parentId,
+								payload: draggedData.protocol.dragPayload,
+							},
+						};
+						dragTracking.monitorIds.forEach((monitorId) => {
+							getViewData(monitorId)?.protocol.onMonitorDragExit?.(monitorEventData);
+						});
+					}
 				}
 
 				return;
@@ -563,7 +598,8 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 						dragReleaseAnimationDelay,
 						dragReleaseAnimationDuration,
 					},
-					// No receiver yet
+					monitorIds: [],
+					// (No receiver yet)
 				};
 				if (debug) {
 					console.log(`Start dragging view id ${id} at screen position (${screenPosition.x}, ${screenPosition.y})`);
@@ -654,9 +690,9 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 				payload: draggedData.protocol.dragPayload,
 			};
 
-			// Notify monitors, if necessary.
-			if (monitors.length > 0) {
-				const monitorData: DraxMonitorEventData = {
+			// Notify monitors and update monitor tracking, if necessary.
+			if (monitors.length > 0 || dragTracking.monitorIds.length > 0) {
+				const monitorEventData: DraxMonitorEventData = {
 					screenPosition,
 					dragged: draggedEventData,
 					receiver: receiver && {
@@ -665,11 +701,22 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 						payload: receiver.data.protocol.receiverPayload,
 					},
 				};
-				monitors.forEach((monitor) => {
-					// TODO: maintain list of active monitors for enter/exit
-					// and send correct events. Also need to update drag end
-					// logic for exit?
+				const newMonitorIds = monitors.map(({ id: monitorId, data: monitorData }) => {
+					if (dragTracking.monitorIds.includes(monitorId)) {
+						// Drag was already over this monitor.
+						monitorData.protocol.onMonitorDragEnter?.(monitorEventData);
+					} else {
+						// Drag is entering monitor.
+						monitorData.protocol.onMonitorDragEnter?.(monitorEventData);
+					}
+					return monitorId;
 				});
+				dragTracking.monitorIds.filter((monitorId) => !newMonitorIds.includes(monitorId))
+					.forEach((monitorId) => {
+						// Drag has exited monitor.
+						getViewData(monitorId)?.protocol.onMonitorDragExit?.(monitorEventData);
+					});
+				dragTracking.monitorIds = newMonitorIds;
 			}
 
 			/*
