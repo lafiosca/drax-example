@@ -274,11 +274,11 @@ const App = () => {
 							dragReleasedStyle={styles.dragReleaseHighlight}
 							receivingStyle={styles.receiveHighlight}
 							draggable
-							onReceiveDragDrop={({ dragged: { payload } }) => {
-								console.log(`green received drop: ${JSON.stringify(payload, null, 2)}`);
+							onReceiveDragDrop={(event) => {
+								console.log(`green received drop: ${JSON.stringify(event, null, 2)}`);
 								setGreenReceived([
 									...greenReceived,
-									payload.letter ?? payload.boxName ?? '?',
+									event.dragged.payload.letter ?? event.dragged.payload.boxName ?? '?',
 								]);
 							}}
 							dragReleaseAnimationDelay={500}
@@ -291,11 +291,14 @@ const App = () => {
 						<DraxView
 							style={styles.yellowBox}
 							receivingStyle={styles.receiveHighlight}
-							onReceiveDragDrop={({ dragged: { payload } }) => {
-								console.log(`yellow received drop: ${JSON.stringify(payload, null, 2)}`);
+							onReceiveDragOver={(event) => {
+								console.log(`yellow received drag over: ${JSON.stringify(event, null, 2)}`);
+							}}
+							onReceiveDragDrop={(event) => {
+								console.log(`yellow received drop: ${JSON.stringify(event, null, 2)}`);
 								setYellowReceived([
 									...yellowReceived,
-									payload.letter ?? payload.boxName ?? '?',
+									event.dragged.payload.letter ?? event.dragged.payload.boxName ?? '?',
 								]);
 							}}
 							receiverPayload={{ boxName: 'yellow' }}
@@ -365,8 +368,8 @@ const App = () => {
 							</View>
 						)}
 						keyExtractor={(item) => item}
-					/>
-					<DraxList
+					/> */}
+					{/* <DraxList
 						style={{ flex: 1 }}
 						data={['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q']}
 						renderItem={({ item }) => (

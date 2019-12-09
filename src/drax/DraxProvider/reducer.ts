@@ -20,10 +20,13 @@ const createInitialProtocol = (): DraxProtocol => ({
 const createInitialActivity = (): DraxActivity => ({
 	dragState: DraxDraggedViewState.Inactive,
 	dragOffset: new Animated.ValueXY({ x: 0, y: 0 }),
-	draggingOverReceiverPayload: undefined,
+	grabOffset: undefined,
+	grabOffsetRatio: undefined,
+	draggingOverReceiver: undefined,
 	receiverState: DraxReceiverViewState.Inactive,
-	receiverOffset: new Animated.ValueXY({ x: 0, y: 0 }),
-	receivingDragPayload: undefined,
+	receiverOffset: undefined,
+	receiverOffsetRatio: undefined,
+	receivingDrag: undefined,
 });
 
 export const initialState: DraxState = {

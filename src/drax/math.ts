@@ -1,4 +1,4 @@
-import { DraxViewMeasurements } from './types';
+import { DraxViewMeasurements, Position } from './types';
 
 export const clipMeasurements = (
 	vm: DraxViewMeasurements,
@@ -48,12 +48,28 @@ export const clipMeasurements = (
 };
 
 export const isPointInside = (
-	x: number,
-	y: number,
+	{ x, y }: Position,
 	{
 		width,
 		height,
-		x: mx,
-		y: my,
+		x: x0,
+		y: y0,
 	}: DraxViewMeasurements,
-): boolean => (x >= mx && y >= my && x <= mx + width && y <= my + height);
+): boolean => (x >= x0 && y >= y0 && x < x0 + width && y < y0 + height);
+
+export const getRelativePosition = (
+	{ x, y }: Position,
+	{
+		width,
+		height,
+		x: x0,
+		y: y0,
+	}: DraxViewMeasurements,
+) => {
+	const rx = x - x0;
+	const ry = y - y0;
+	return {
+		relativePosition: { x: rx, y: ry },
+		relativePositionRatio: { x: rx / width, y: ry / height },
+	};
+};
