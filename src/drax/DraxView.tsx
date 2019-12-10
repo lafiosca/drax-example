@@ -63,6 +63,7 @@ export const DraxView = (
 		otherDraggingWithReceiverStyle,
 		otherDraggingWithoutReceiverStyle,
 		registration,
+		onMeasure,
 		parent,
 		scrollPositionRef,
 		children,
@@ -254,20 +255,19 @@ export const DraxView = (
 			 * for the sake of paranoia, we'll check and send undefined
 			 * for the entire measurements object.
 			 */
-			measureView({
-				id,
-				measurements: (height === undefined
-					? undefined
-					: {
-						x,
-						y,
-						width,
-						height,
-					}
-				),
-			});
+			const measurements = (height === undefined
+				? undefined
+				: {
+					x,
+					y,
+					width,
+					height,
+				}
+			);
+			measureView({ id, measurements });
+			onMeasure?.(measurements);
 		},
-		[id, measureView],
+		[id, measureView, onMeasure],
 	);
 
 	/*

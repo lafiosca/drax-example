@@ -404,6 +404,9 @@ export interface DraxViewProps extends DraxProtocolProps, ViewProps {
 	/** For external registration of this view, to access internal methods, similar to a ref */
 	registration?: (registration: DraxViewRegistration | undefined) => void;
 
+	/** For receiving view measurements externally */
+	onMeasure?: (measurements: DraxViewMeasurements | undefined) => void;
+
 	/** Unique drax view id, auto-generated if omitted */
 	id?: string;
 

@@ -20,6 +20,7 @@ import {
 	DraxMonitorEventData,
 	DraxListScrollState,
 	Position,
+	DraxViewMeasurements,
 } from './types';
 import { DraxView } from './DraxView';
 
@@ -42,6 +43,12 @@ export const DraxList = <T extends unknown>(
 
 	// FlatList node handle, used for measuring children.
 	const nodeHandleRef = useRef<number | null>(null);
+
+	// Container view measurements, for scrolling by percentage.
+	const containerMeasurementsRef = useRef<DraxViewMeasurements | undefined>(undefined);
+
+	// Content size, for scrolling by percentage.
+	const contentSizeRef = useRef<Position | undefined>(undefined);
 
 	// Scroll position, for Drax bounds checking and auto-scrolling.
 	const scrollPositionRef = useRef<Position>({ x: 0, y: 0 });
@@ -87,6 +94,22 @@ export const DraxList = <T extends unknown>(
 		[id, renderItem],
 	);
 
+	// Track the size of the container view.
+	const onMeasureContainer = useCallback(
+		(measurements: DraxViewMeasurements | undefined) => {
+			console.log(`Measured container view: ${JSON.stringify(measurements, null, 2)}`);
+			containerMeasurementsRef.current = measurements;
+		},
+		[],
+	);
+
+	const onContentSizeChange = useCallback(
+		(width: number, height: number) => {
+			contentSizeRef.current = { x: width, y: height };
+		},
+		[],
+	);
+
 	// Update tracked scroll position when list is scrolled.
 	const onScroll = useCallback(
 		({ nativeEvent: { contentOffset } }: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -99,21 +122,36 @@ export const DraxList = <T extends unknown>(
 	const doScroll = useCallback(
 		() => {
 			const flatList = flatListRef.current;
-			if (!flatList) {
+			const containerMeasurements = containerMeasurementsRef.current;
+			const contentSize = contentSizeRef.current;
+			if (!flatList || !containerMeasurements || !contentSize) {
 				return;
 			}
-			const prevOffset = horizontal
-				? scrollPositionRef.current.x
-				: scrollPositionRef.current.y;
-			const increment = 12 * scrollStateRef.current;
-			if (increment) {
-				const offset = prevOffset + increment;
-				console.log(`auto-scroll to ${offset}`);
-				flatList.scrollToOffset({ offset });
-				if (horizontal) {
-					scrollPositionRef.current.x = offset;
-				} else {
-					scrollPositionRef.current.y = offset;
+			let containerLength: number;
+			let contentLength: number;
+			let prevOffset: number;
+			if (horizontal) {
+				containerLength = containerMeasurements.width;
+				contentLength = contentSize.x;
+				prevOffset = scrollPositionRef.current.x;
+			} else {
+				containerLength = containerMeasurements.height;
+				contentLength = contentSize.y;
+				prevOffset = scrollPositionRef.current.y;
+			}
+			const jumpLength = containerLength * 0.8;
+			if (scrollStateRef.current === DraxListScrollState.ForwardSlow) {
+				const maxOffset = contentLength - containerLength;
+				if (prevOffset < maxOffset) {
+					const offset = Math.min(prevOffset + jumpLength, maxOffset);
+					console.log(`auto-scroll forward to ${offset}`);
+					flatList.scrollToOffset({ offset });
+				}
+			} else if (scrollStateRef.current === DraxListScrollState.BackSlow) {
+				if (prevOffset > 0) {
+					const offset = Math.max(prevOffset - jumpLength, 0);
+					console.log(`auto-scroll back to ${offset}`);
+					flatList.scrollToOffset({ offset });
 				}
 			}
 		},
@@ -127,7 +165,8 @@ export const DraxList = <T extends unknown>(
 			if (scrollIntervalRef.current) {
 				return;
 			}
-			scrollIntervalRef.current = setInterval(doScroll, 66);
+			doScroll();
+			scrollIntervalRef.current = setInterval(doScroll, 2000);
 		},
 		[doScroll],
 	);
@@ -163,14 +202,10 @@ export const DraxList = <T extends unknown>(
 				scrollStateRef.current = DraxListScrollState.Inactive;
 				stopScroll();
 			} else {
-				if (ratio >= 0.95) {
-					scrollStateRef.current = DraxListScrollState.ForwardFast;
-				} else if (ratio >= 0.9) {
+				if (ratio >= 0.9) {
 					scrollStateRef.current = DraxListScrollState.ForwardSlow;
-				} else if (ratio <= 0.05) {
-					scrollStateRef.current = DraxListScrollState.BackFast;
 				} else if (ratio <= 0.1) {
-					scrollStateRef.current = DraxListScrollState.BackFast;
+					scrollStateRef.current = DraxListScrollState.BackSlow;
 				}
 				startScroll();
 			}
@@ -191,6 +226,7 @@ export const DraxList = <T extends unknown>(
 		<DraxView
 			id={id}
 			scrollPositionRef={scrollPositionRef}
+			onMeasure={onMeasureContainer}
 			onMonitorDragOver={onMonitorDragOver}
 			onMonitorDragExit={onMonitorDragEnd}
 			onMonitorDragDrop={onMonitorDragEnd}
@@ -203,6 +239,7 @@ export const DraxList = <T extends unknown>(
 				}}
 				renderItem={renderDraxViewItem}
 				onScroll={onScroll}
+				onContentSizeChange={onContentSizeChange}
 				data={id ? data : []}
 				{...props}
 			/>
