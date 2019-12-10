@@ -139,7 +139,7 @@ export const DraxList = <T extends unknown>(
 				contentLength = contentSize.y;
 				prevOffset = scrollPositionRef.current.y;
 			}
-			const jumpLength = containerLength * 0.8;
+			const jumpLength = containerLength * 0.2;
 			if (scrollStateRef.current === DraxListScrollState.ForwardSlow) {
 				const maxOffset = contentLength - containerLength;
 				if (prevOffset < maxOffset) {
@@ -166,7 +166,7 @@ export const DraxList = <T extends unknown>(
 				return;
 			}
 			doScroll();
-			scrollIntervalRef.current = setInterval(doScroll, 2000);
+			scrollIntervalRef.current = setInterval(doScroll, 250);
 		},
 		[doScroll],
 	);
