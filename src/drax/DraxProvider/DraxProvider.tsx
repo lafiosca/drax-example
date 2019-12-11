@@ -79,7 +79,12 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			if (!draggedData) {
 				// Case 2: This view can't be found/measured.
 
-				if (debug) {
+				if (dragged?.id === id) {
+					if (debug) {
+						console.log(`Data for currently dragged view id ${id} could not be found`);
+						// TODO: reset drag and notify monitors
+					}
+				} else if (debug) {
 					console.log(`Ignoring gesture for view id ${id} because view data was not found`);
 				}
 				return;
@@ -172,10 +177,13 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 					return;
 				}
 
-				// Get data for receiver view (if any).
+				// Get data for receiver view (if any) before we reset.
 				const { id: receiverId, data: receiverData } = getTrackingReceiver() ?? {};
 
-				// Reset drag.
+				// Get the monitors (if any) before we reset.
+				const monitors = getTrackingMonitors();
+
+				// Reset the drag.
 				resetDrag();
 
 				if (receiverData && shouldDrop) {
@@ -199,7 +207,6 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 					});
 
 					// And let any active monitors know too.
-					const monitors = getTrackingMonitors();
 					if (monitors.length > 0) {
 						const monitorEventData = {
 							screenPosition,
@@ -243,7 +250,6 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 					}
 
 					// And let any active monitors know too.
-					const monitors = getTrackingMonitors();
 					if (monitors.length > 0) {
 						const monitorEventData = {
 							screenPosition,

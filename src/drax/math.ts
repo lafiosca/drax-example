@@ -3,7 +3,7 @@ import { DraxViewMeasurements, Position } from './types';
 export const clipMeasurements = (
 	vm: DraxViewMeasurements,
 	cvm: DraxViewMeasurements,
-): DraxViewMeasurements | undefined => {
+): DraxViewMeasurements => {
 	let {
 		width,
 		height,
@@ -21,7 +21,12 @@ export const clipMeasurements = (
 	const cx1 = cx0 + cwidth;
 	const cy1 = cy0 + cheight;
 	if (x0 >= cx1 || x1 <= cx0 || y0 >= cy1 || y1 <= cy0) {
-		return undefined;
+		return {
+			x: -1,
+			y: -1,
+			width: 0,
+			height: 0,
+		};
 	}
 	if (x0 < cx0) {
 		x0 = cx0;

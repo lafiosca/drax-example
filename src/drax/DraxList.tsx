@@ -197,6 +197,7 @@ export const DraxList = <T extends unknown>(
 	// Monitor drags to see if we should scroll.
 	const onMonitorDragOver = useCallback(
 		({ relativePositionRatio }: DraxMonitorEventData) => {
+			console.log('onMonitorDragOver');
 			const ratio = horizontal ? relativePositionRatio.x : relativePositionRatio.y;
 			if (ratio > 0.1 && ratio < 0.9) {
 				scrollStateRef.current = DraxListScrollState.Inactive;
@@ -227,9 +228,16 @@ export const DraxList = <T extends unknown>(
 			id={id}
 			scrollPositionRef={scrollPositionRef}
 			onMeasure={onMeasureContainer}
+			onMonitorDragEnter={() => { console.log('onMonitorDragEnter'); }}
 			onMonitorDragOver={onMonitorDragOver}
-			onMonitorDragExit={onMonitorDragEnd}
-			onMonitorDragDrop={onMonitorDragEnd}
+			onMonitorDragExit={() => {
+				console.log('onMonitorDragExit');
+				onMonitorDragEnd();
+			}}
+			onMonitorDragDrop={() => {
+				console.log('onMonitorDragDrop');
+				onMonitorDragEnd();
+			}}
 			style={style}
 		>
 			<FlatList

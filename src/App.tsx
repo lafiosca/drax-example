@@ -251,7 +251,7 @@ const App = () => {
 						}}
 					/>
 				</View> */}
-				<DraxProvider>
+				<DraxProvider debug>
 					{/* <ScrollView>
 						<DraxView
 							style={styles.blueBox}

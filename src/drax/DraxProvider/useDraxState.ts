@@ -69,6 +69,7 @@ const getAbsoluteMeasurementsForViewInState = (
 	{ measurements, parentId }: DraxViewData,
 ): DraxViewMeasurements | undefined => {
 	if (!measurements) {
+		console.log('Failed to get absolute measurements for view: no measurements');
 		return undefined;
 	}
 	if (!parentId) {
@@ -76,10 +77,12 @@ const getAbsoluteMeasurementsForViewInState = (
 	}
 	const parentViewData = getViewDataInState(state, parentId);
 	if (!parentViewData) {
+		console.log(`Failed to get absolute measurements for view: no view data for parent id ${parentId}`);
 		return undefined;
 	}
 	const parentMeasurements = getAbsoluteMeasurementsForViewInState(state, parentViewData);
 	if (!parentMeasurements) {
+		console.log(`Failed to get absolute measurements for view: no absolute measurements for parent id ${parentId}`);
 		return undefined;
 	}
 	const {
@@ -106,10 +109,12 @@ const getAbsoluteMeasurementsForViewInState = (
 const getAbsoluteViewDataInState = (state: DraxState, id: string | undefined) => {
 	const viewData = getViewDataInState(state, id);
 	if (!viewData) {
+		console.log(`No view data for id ${id}`);
 		return undefined;
 	}
 	const absoluteMeasurements = getAbsoluteMeasurementsForViewInState(state, viewData);
 	if (!absoluteMeasurements) {
+		console.log(`No absolute measurements for id ${id}`);
 		return undefined;
 	}
 	return {
@@ -319,6 +324,7 @@ const resetReceiverInState = (state: DraxState) => {
 	if (!receiverId) {
 		return;
 	}
+	console.log('clearing receiver');
 	state.tracking.receiverId = undefined;
 	updateViewActivityInState(state, {
 		id: receiverId,
@@ -337,6 +343,7 @@ const resetDragInState = (state: DraxState) => {
 		return;
 	}
 	resetReceiverInState(state);
+	console.log('clearing drag');
 	const { draggedId } = state.tracking;
 	state.tracking = undefined;
 	const draggedData = getViewDataInState(state, draggedId);
