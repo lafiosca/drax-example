@@ -236,12 +236,56 @@ export interface DraxFoundView {
 	relativePositionRatio: Position;
 }
 
+
+/** Tracking information about the current drag, used internally by the Drax provider */
+export interface DraxTracking {
+	/** Start position of the drag in screen coordinates */
+	screenStartPosition: {
+		x: number;
+		y: number;
+	};
+	/** Start position of the drag relative to parent view */
+	parentStartPosition: {
+		x: number;
+		y: number;
+	}
+	/** View id of the dragged view */
+	draggedId: string;
+	/** View id of the current drag receiver, if any */
+	receiverId?: string;
+	/** View ids of monitors that the drag is currently over */
+	monitorIds: string[];
+}
+
+/** Tracking status for reference in views */
+export interface DraxTrackingStatus {
+	/** Is any view being dragged? */
+	dragging: boolean;
+	/** Is any view receiving a drag? */
+	receiving: boolean;
+}
+
 /** Drax provider state for use in reducer; tracks all registered views */
 export interface DraxState {
+	/** A list of the unique identifiers of the registered views */
 	viewIds: string[];
+	/** Data about all registered views, keyed by their unique identifiers */
 	viewDataById: {
+		/** Data about a registered view, keyed by its unique identifier */
 		[id: string]: DraxViewData;
 	};
+	/** Information about the currently tracked drag, if any */
+	tracking?: DraxTracking;
+}
+
+/** Payload to start tracking a drag */
+export interface StartDragPayload {
+	/** Absolute screen position of where the drag started */
+	screenStartPosition: Position;
+	/** Position relative to the dragged view's immediate parent where the drag started */
+	parentStartPosition: Position;
+	/** The dragged view's unique identifier */
+	draggedId: string;
 }
 
 /** Payload for registering a Drax view */
@@ -269,7 +313,7 @@ export interface UpdateViewProtocolPayload {
 }
 
 /** Payload for reporting the latest measurements of a view after layout */
-export interface MeasureViewPayload {
+export interface UpdateViewMeasurementsPayload {
 	/** The view's unique identifier */
 	id: string;
 	/** The view's measurements */
@@ -277,7 +321,7 @@ export interface MeasureViewPayload {
 }
 
 /** Payload used by Drax provider internally for updating activity for a view */
-export interface UpdateActivityPayload {
+export interface UpdateViewActivityPayload {
 	/** The view's unique identifier */
 	id: string;
 	/** The activity update */
@@ -285,49 +329,9 @@ export interface UpdateActivityPayload {
 }
 
 /** Payload used by Drax provider internally for updating multiple activities */
-export interface UpdateActivitiesPayload {
+export interface UpdateViewActivitiesPayload {
 	/** The activity update payloads */
-	activities: UpdateActivityPayload[];
-}
-
-/** Tracking information about the current drag, used internally by the Drax provider */
-export interface DraxTracking {
-	/** Start position of the drag in screen coordinates */
-	screenStartPosition: {
-		x: number;
-		y: number;
-	};
-	/** Start position of the drag relative to parent view */
-	parentStartPosition: {
-		x: number;
-		y: number;
-	}
-	/** Information about the dragged view */
-	dragged: {
-		/** View id of the dragged view */
-		id: string;
-		/** Animation offset of drag translation */
-		dragOffset: Animated.ValueXY;
-		/** Post-drag release animation delay in ms */
-		dragReleaseAnimationDelay: number;
-		/** Post-drag release animation duration in ms */
-		dragReleaseAnimationDuration: number;
-	};
-	/** Information about the current drag receiver, if any */
-	receiver?: {
-		/** View id of the receiver view */
-		id: string;
-	};
-	/** A list of ids of monitors that the drag is currently over */
-	monitorIds: string[];
-}
-
-/** Tracking status for reference in views */
-export interface DraxTrackingStatus {
-	/** Is any view being dragged? */
-	dragging: boolean;
-	/** Is any view receiving a drag? */
-	receiving: boolean;
+	activities: UpdateViewActivityPayload[];
 }
 
 /** Context value used internally by Drax provider */
@@ -337,7 +341,7 @@ export interface DraxContextValue {
 	registerView: (payload: RegisterViewPayload) => void;
 	unregisterView: (payload: UnregisterViewPayload) => void;
 	updateViewProtocol: (payload: UpdateViewProtocolPayload) => void;
-	measureView: (payload: MeasureViewPayload) => void;
+	updateViewMeasurements: (payload: UpdateViewMeasurementsPayload) => void;
 	handleGestureStateChange: (id: string, event: LongPressGestureHandlerStateChangeEvent) => void;
 	handleGestureEvent: (id: string, nativeEvent: LongPressGestureHandlerGestureEvent['nativeEvent']) => void;
 }

@@ -119,7 +119,7 @@ export const DraxView = (
 		registerView,
 		unregisterView,
 		updateViewProtocol,
-		measureView,
+		updateViewMeasurements,
 		handleGestureEvent,
 		handleGestureStateChange,
 	} = useDrax();
@@ -264,10 +264,10 @@ export const DraxView = (
 					height,
 				}
 			);
-			measureView({ id, measurements });
+			updateViewMeasurements({ id, measurements });
 			onMeasure?.(measurements);
 		},
-		[id, measureView, onMeasure],
+		[id, updateViewMeasurements, onMeasure],
 	);
 
 	/*
