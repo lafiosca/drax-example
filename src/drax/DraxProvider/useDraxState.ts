@@ -4,7 +4,7 @@ import uuid from 'uuid/v4';
 
 import {
 	DraxState,
-	DraxInternalState,
+	DraxRegistry,
 	DraxViewState,
 	DraxViewDragStatus,
 	DraxViewReceiveStatus,
@@ -26,18 +26,26 @@ import { clipMeasurements, isPointInside, getRelativePosition } from '../math';
 import { defaultDragReleaseAnimationDelay, defaultDragReleaseAnimationDuration } from '../params';
 
 /*
- * The state modifier functions mutate the state parameter, so let's disable
+ * The registry modifier functions mutate the registry parameter, so let's disable
  * the rule "no parameter reassignment" rule for the entire file:
  */
 
 /* eslint-disable no-param-reassign */
 
+/** Create an initial empty Drax registry. */
+export const createInitialRegistry = (): DraxRegistry => ({
+	viewIds: [],
+	viewDataById: {},
+	tracking: undefined,
+});
+
 /** Create the initial empty protocol data for a newly registered view. */
-const createInitialProtocol = (): DraxProtocol => ({
+export const createInitialProtocol = (): DraxProtocol => ({
 	draggable: false,
 	receptive: false,
 	monitoring: false,
 });
+
 
 /** Create the initial empty view state data for a newly registered view. */
 const createInitialViewState = (): DraxViewState => ({
@@ -52,13 +60,6 @@ const createInitialViewState = (): DraxViewState => ({
 	receivingDrag: undefined,
 });
 
-/** Create an initial empty Drax internal state. */
-const createInitialInternalState = (): DraxInternalState => ({
-	viewIds: [],
-	viewDataById: {},
-	tracking: undefined,
-});
-
 /** Create an initial empty Drax state. */
 const createInitialState = (): DraxState => ({
 	viewStateById: {},
@@ -69,13 +70,13 @@ const createInitialState = (): DraxState => ({
 });
 
 /** Get data for a registered view by its id. */
-const getViewDataInState = (state: DraxInternalState, id: string | undefined): DraxViewData | undefined => (
-	(id && state.viewIds.includes(id)) ? state.viewDataById[id] : undefined
+const getViewDataFromRegistry = (registry: DraxRegistry, id: string | undefined): DraxViewData | undefined => (
+	(id && registry.viewIds.includes(id)) ? registry.viewDataById[id] : undefined
 );
 
 /** Get absolute screen measurements for a registered view, incorporating parents and clipping. */
-const getAbsoluteMeasurementsForViewInState = (
-	state: DraxState,
+const getAbsoluteMeasurementsForViewFromRegistry = (
+	registry: DraxRegistry,
 	{ measurements, parentId }: DraxViewData,
 ): DraxViewMeasurements | undefined => {
 	if (!measurements) {
@@ -85,12 +86,12 @@ const getAbsoluteMeasurementsForViewInState = (
 	if (!parentId) {
 		return measurements;
 	}
-	const parentViewData = getViewDataInState(state, parentId);
+	const parentViewData = getViewDataFromRegistry(registry, parentId);
 	if (!parentViewData) {
 		console.log(`Failed to get absolute measurements for view: no view data for parent id ${parentId}`);
 		return undefined;
 	}
-	const parentMeasurements = getAbsoluteMeasurementsForViewInState(state, parentViewData);
+	const parentMeasurements = getAbsoluteMeasurementsForViewFromRegistry(registry, parentViewData);
 	if (!parentMeasurements) {
 		console.log(`Failed to get absolute measurements for view: no absolute measurements for parent id ${parentId}`);
 		return undefined;
@@ -117,12 +118,12 @@ const getAbsoluteMeasurementsForViewInState = (
 
 /** Get data, including absolute measurements, for a registered view by its id. */
 const getAbsoluteViewDataInState = (state: DraxState, id: string | undefined) => {
-	const viewData = getViewDataInState(state, id);
+	const viewData = getViewDataFromRegistry(state, id);
 	if (!viewData) {
 		console.log(`No view data for id ${id}`);
 		return undefined;
 	}
-	const absoluteMeasurements = getAbsoluteMeasurementsForViewInState(state, viewData);
+	const absoluteMeasurements = getAbsoluteMeasurementsForViewFromRegistry(state, viewData);
 	if (!absoluteMeasurements) {
 		console.log(`No absolute measurements for id ${id}`);
 		return undefined;
@@ -157,7 +158,7 @@ const findMonitorsAndReceiverInState = (
 			return;
 		}
 
-		const target = getViewDataInState(state, targetId);
+		const target = getViewDataFromRegistry(state, targetId);
 
 		if (!target) {
 			// This should never happen, but just in case.
@@ -171,7 +172,7 @@ const findMonitorsAndReceiverInState = (
 			return;
 		}
 
-		const absoluteMeasurements = getAbsoluteMeasurementsForViewInState(state, target);
+		const absoluteMeasurements = getAbsoluteMeasurementsForViewFromRegistry(state, target);
 
 		if (!absoluteMeasurements) {
 			// Only consider views for which we have absolute measurements.
@@ -268,7 +269,7 @@ const registerViewInState = (
 	}
 
 	// Maintain any existing view data.
-	const existingData = getViewDataInState(state, id);
+	const existingData = getViewDataFromRegistry(state, id);
 
 	state.viewDataById[id] = {
 		parentId,
@@ -284,7 +285,7 @@ const updateViewProtocolInState = (
 	state: DraxState,
 	{ id, protocol }: UpdateViewProtocolPayload,
 ) => {
-	const existingData = getViewDataInState(state, id);
+	const existingData = getViewDataFromRegistry(state, id);
 	if (existingData) {
 		state.viewDataById[id].protocol = protocol;
 	}
@@ -295,7 +296,7 @@ const updateViewMeasurementsInState = (
 	state: DraxState,
 	{ id, measurements }: UpdateViewMeasurementsPayload,
 ) => {
-	const existingData = getViewDataInState(state, id);
+	const existingData = getViewDataFromRegistry(state, id);
 	if (existingData) {
 		state.viewDataById[id].measurements = measurements;
 	}
@@ -306,7 +307,7 @@ const updateViewActivityInState = (
 	state: DraxState,
 	{ id, activity }: UpdateViewActivityPayload,
 ) => {
-	const existingData = getViewDataInState(state, id);
+	const existingData = getViewDataFromRegistry(state, id);
 	if (existingData) {
 		state.viewDataById[id].activity = {
 			...existingData.activity,
@@ -356,7 +357,7 @@ const resetDragInState = (state: DraxState) => {
 	console.log('clearing drag');
 	const { draggedId } = state.tracking;
 	state.tracking = undefined;
-	const draggedData = getViewDataInState(state, draggedId);
+	const draggedData = getViewDataFromRegistry(state, draggedId);
 	updateViewActivityInState(state, {
 		id: draggedId,
 		activity: {
@@ -449,17 +450,10 @@ const unregisterViewInState = (
 /** Create a Drax state and wire up all of the methods. */
 export const useDraxState = () => {
 	/** State for registering views and storing view data. */
-	const stateRef = useRef(createInitialState());
-
-	const [, setRenderId] = useState('');
-
-	const rerender = useCallback(
-		() => setRenderId(uuid()),
-		[setRenderId],
-	);
+	const registryRef = useRef(createInitialRegistry());
 
 	const getViewData = useCallback(
-		(id: string | undefined) => getViewDataInState(stateRef.current, id),
+		(id: string | undefined) => getViewDataFromRegistry(stateRef.current, id),
 		[],
 	);
 
@@ -521,59 +515,42 @@ export const useDraxState = () => {
 	);
 
 	const updateViewActivity = useCallback(
-		(payload: UpdateViewActivityPayload) => {
-			updateViewActivityInState(stateRef.current, payload);
-			rerender();
-		},
-		[rerender],
+		(payload: UpdateViewActivityPayload) => (
+			updateViewActivityInState(stateRef.current, payload)
+		),
+		[],
 	);
 
 	const updateViewActivities = useCallback(
-		(payload: UpdateViewActivitiesPayload) => {
-			updateViewActivitiesInState(stateRef.current, payload);
-			rerender();
-		},
-		[rerender],
+		(payload: UpdateViewActivitiesPayload) => (
+			updateViewActivitiesInState(stateRef.current, payload)
+		),
+		[],
 	);
 
 	const resetReceiver = useCallback(
-		() => {
-			resetReceiverInState(stateRef.current);
-			rerender();
-		},
-		[rerender],
+		() => resetReceiverInState(stateRef.current),
+		[],
 	);
 
 	const resetDrag = useCallback(
-		() => {
-			resetDragInState(stateRef.current);
-			rerender();
-		},
-		[rerender],
+		() => resetDragInState(stateRef.current),
+		[],
 	);
 
 	const startDrag = useCallback(
-		(payload: StartDragPayload) => {
-			startDragInState(stateRef.current, payload);
-			rerender();
-		},
-		[rerender],
+		(payload: StartDragPayload) => startDragInState(stateRef.current, payload),
+		[],
 	);
 
 	const setReceiverId = useCallback(
-		(receiverId: string) => {
-			setReceiverIdInState(stateRef.current, receiverId);
-			rerender();
-		},
-		[rerender],
+		(receiverId: string) => setReceiverIdInState(stateRef.current, receiverId),
+		[],
 	);
 
 	const setMonitorIds = useCallback(
-		(monitorIds: string[]) => {
-			setMonitorIdsInState(stateRef.current, monitorIds);
-			rerender();
-		},
-		[rerender],
+		(monitorIds: string[]) => setMonitorIdsInState(stateRef.current, monitorIds),
+		[],
 	);
 
 	const unregisterView = useCallback(

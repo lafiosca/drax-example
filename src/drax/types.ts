@@ -271,8 +271,8 @@ export interface DraxViewState {
 	receivingDrag?: DraxEventViewData;
 }
 
-/** Drax provider internal state for tracking view data and drags */
-export interface DraxInternalState {
+/** Drax provider internal registry; maintains view data and tracks drags */
+export interface DraxRegistry {
 	/** A list of the unique identifiers of the registered views, in order of registration */
 	viewIds: string[];
 	/** Data about all registered views, keyed by their unique identifiers */
@@ -284,7 +284,7 @@ export interface DraxInternalState {
 	tracking?: DraxTracking;
 }
 
-/** Drax provider state for use in reducer; maintains render-related data */
+/** Drax provider render state; maintains render-related data */
 export interface DraxState {
 	/** Render-related state for all registered views, keyed by their unique identifiers */
 	viewStateById: {
