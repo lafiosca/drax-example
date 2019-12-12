@@ -174,7 +174,7 @@ export const DraxList = <T extends unknown>(
 	// Stop the auto-scrolling interval.
 	const stopScroll = useCallback(
 		() => {
-			console.log('stop auto-scroll');
+			// console.log('stop auto-scroll');
 			if (scrollIntervalRef.current) {
 				clearInterval(scrollIntervalRef.current);
 				scrollIntervalRef.current = undefined;
@@ -197,7 +197,7 @@ export const DraxList = <T extends unknown>(
 	// Monitor drags to see if we should scroll.
 	const onMonitorDragOver = useCallback(
 		({ relativePositionRatio }: DraxMonitorEventData) => {
-			console.log('onMonitorDragOver');
+			// console.log('onMonitorDragOver');
 			const ratio = horizontal ? relativePositionRatio.x : relativePositionRatio.y;
 			if (ratio > 0.1 && ratio < 0.9) {
 				scrollStateRef.current = DraxListScrollStatus.Inactive;

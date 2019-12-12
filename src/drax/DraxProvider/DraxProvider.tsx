@@ -5,28 +5,27 @@ import React, {
 	ReactNodeArray,
 } from 'react';
 import { Animated, View, StyleSheet } from 'react-native';
-import {
-	State,
-	LongPressGestureHandlerStateChangeEvent,
-} from 'react-native-gesture-handler';
+import { State } from 'react-native-gesture-handler';
 
+import { useDraxRegistry } from './useDraxRegistry';
 import { useDraxState } from './useDraxState';
 import { DraxContext } from '../DraxContext';
 import {
-	LongPressGestureHandlerGestureEvent,
 	DraxProviderProps,
-	UpdateViewActivityPayload,
-	DraxViewReceiveStatus,
-	DraxViewDragStatus,
 	DraxContextValue,
+	DraxGestureStateChangeEvent,
+	DraxGestureEvent,
 } from '../types';
 import { getRelativePosition } from '../math';
 
 export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = false, children }) => {
 	const {
-		getViewData,
-		getAbsoluteViewData,
+		getViewState,
 		getTrackingStatus,
+		dispatch,
+	} = useDraxState();
+	const {
+		getAbsoluteViewData,
 		getTrackingDragged,
 		getTrackingReceiver,
 		getTrackingMonitorIds,
@@ -36,20 +35,19 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		registerView,
 		updateViewProtocol,
 		updateViewMeasurements,
-		updateViewActivity,
-		updateViewActivities,
 		resetReceiver,
 		resetDrag,
 		startDrag,
-		setReceiverId,
+		updateReceiver,
 		setMonitorIds,
 		unregisterView,
-	} = useDraxState();
+	} = useDraxRegistry(dispatch);
+
 
 	const handleGestureStateChange = useCallback(
-		(id: string, { nativeEvent }: LongPressGestureHandlerStateChangeEvent) => {
+		(id: string, event: DraxGestureStateChangeEvent) => {
 			if (debug) {
-				console.log(`handleGestureStateChange(${id}, ${JSON.stringify(nativeEvent, null, 2)})`);
+				console.log(`handleGestureStateChange(${id}, ${JSON.stringify(event, null, 2)})`);
 			}
 
 			// Get info on the currently dragged view, if any.
@@ -103,7 +101,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 				y: grabY, // y position of touch relative to dragged view
 				absoluteX: parentX, // x position of touch relative to parent of dragged view
 				absoluteY: parentY, // y position of touch relative to parent of dragged view
-			} = nativeEvent;
+			} = event;
 
 			/** Position of touch relative to parent of dragged view */
 			const parentPosition = { x: parentX, y: parentY };
@@ -262,12 +260,10 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 							},
 						};
 						monitors.forEach(({ data: monitorData }) => {
-							if (monitorData) {
-								monitorData.protocol.onMonitorDragExit?.({
-									...monitorEventData,
-									...getRelativePosition(screenPosition, monitorData.absoluteMeasurements),
-								});
-							}
+							monitorData.protocol.onMonitorDragExit?.({
+								...monitorEventData,
+								...getRelativePosition(screenPosition, monitorData.absoluteMeasurements),
+							});
 						});
 					}
 				}
@@ -280,9 +276,6 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			if (!draggedData.protocol.draggable) {
 				// Case 4a: This view is not draggable.
 
-				if (debug) {
-					console.log(`Ignoring gesture for undraggable view id ${id}`);
-				}
 				return;
 			}
 
@@ -338,22 +331,16 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 					screenStartPosition: screenPosition,
 					parentStartPosition: parentPosition,
 					draggedId: id,
+					grabOffset: { x: grabX, y: grabY },
+					grabOffsetRatio: {
+						x: grabX / width,
+						y: grabY / height,
+					},
 				});
 				if (debug) {
 					console.log(`Start dragging view id ${id} at screen position (${screenPosition.x}, ${screenPosition.y})`);
 				}
 				draggedData.protocol.onDragStart?.({ screenPosition });
-				updateViewActivity({
-					id,
-					activity: {
-						dragState: DraxViewDragStatus.Dragging,
-						grabOffset: { x: grabX, y: grabY },
-						grabOffsetRatio: {
-							x: grabX / width,
-							y: grabY / height,
-						},
-					},
-				});
 			}
 		},
 		[
@@ -364,26 +351,27 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			getTrackingMonitors,
 			resetDrag,
 			startDrag,
-			updateViewActivity,
 			debug,
 		],
 	);
 
 	const handleGestureEvent = useCallback(
-		(id: string, nativeEvent: LongPressGestureHandlerGestureEvent['nativeEvent']) => {
+		(id: string, event: DraxGestureEvent) => {
 			if (debug) {
-				console.log(`handleGestureEvent(${id}, ${JSON.stringify(nativeEvent, null, 2)})`);
+				console.log(`handleGestureEvent(${id}, ${JSON.stringify(event, null, 2)})`);
 			}
 
-			const { id: draggedId, data: draggedData } = getTrackingDragged() ?? {};
+			const dragged = getTrackingDragged();
 
-			if (!draggedId) {
+			if (!dragged) {
 				// We're not tracking any gesture yet.
 				if (debug) {
 					console.log('Ignoring gesture event because we have not initialized a drag');
 				}
 				return;
 			}
+
+			const { id: draggedId, data: draggedData } = dragged;
 
 			if (draggedId !== id) {
 				// This is not a gesture we're tracking. We don't support multiple simultaneous drags.
@@ -402,7 +390,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			const {
 				absoluteX: parentX, // x position of touch relative to parent of dragged view
 				absoluteY: parentY, // y position of touch relative to parent of dragged view
-			} = nativeEvent;
+			} = event;
 
 			/** Position of touch relative to parent of dragged view */
 			const parentPosition = { x: parentX, y: parentY };
@@ -411,7 +399,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 
 			if (debug) {
 				console.log(`Dragged item screen coordinates (${draggedData.absoluteMeasurements.x}, ${draggedData.absoluteMeasurements.y})`);
-				console.log(`Native event in-view touch coordinates: (${nativeEvent.x}, ${nativeEvent.y})`);
+				console.log(`Native event in-view touch coordinates: (${event.x}, ${event.y})`);
 				console.log(`Drag translation (${translation?.x}, ${translation?.y})`);
 				console.log(`Drag at screen coordinates (${screenPosition?.x}, ${screenPosition?.y})\n`);
 			}
@@ -427,8 +415,9 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			// Get the previous receiver, if any.
 			const { id: oldReceiverId, data: oldReceiverData } = getTrackingReceiver() ?? {};
 
-			// Always update the drag animation offset.
-			draggedData.activity.dragOffset.setValue({ x: translation.x, y: translation.y });
+			// Always update the drag screen position.
+			// TODO: provide way to update drag position
+			// draggedData.activity.dragOffset.setValue({ x: translation.x, y: translation.y });
 
 			const draggedProtocol = draggedData.protocol;
 			const eventDataDragged = {
@@ -493,13 +482,10 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			 * Case 5: new does not exist, old does not exist
 			 */
 
-			const activities: UpdateViewActivityPayload[] = [];
-
 			if (receiver) {
 				// New receiver exists.
 				const { id: receiverId, data: receiverData } = receiver;
 				const receiverProtocol = receiverData.protocol;
-				const { receiverPayload } = receiverProtocol;
 
 				const dragEventData = {
 					screenPosition,
@@ -513,35 +499,8 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 					dragged: eventDataDragged,
 				};
 
-				// Prepare activity update for the receiver.
-				activities.push({
-					id: receiverId,
-					activity: {
-						receiverState: DraxViewReceiveStatus.Receiving,
-						receiverOffset: receiver.relativePosition,
-						receiverOffsetRatio: receiver.relativePositionRatio,
-						receivingDrag: {
-							id: draggedId,
-							parentId: draggedData.parentId,
-							payload: draggedProtocol.dragPayload,
-						},
-					},
-				});
-
-				// Prepare activity update for dragged item, if necessary.
-				if (draggedData.activity.draggingOverReceiver?.id !== receiverId
-					|| draggedData.activity.draggingOverReceiver?.payload !== receiverPayload) {
-					activities.push({
-						id: draggedId,
-						activity: {
-							draggingOverReceiver: {
-								id: receiverId,
-								parentId: receiverData.parentId,
-								payload: receiverPayload,
-							},
-						},
-					});
-				}
+				// Update the receiver.
+				updateReceiver(receiver, dragged);
 
 				if (oldReceiverId) {
 					if (receiverId === oldReceiverId) {
@@ -552,9 +511,6 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 						receiverProtocol.onReceiveDragOver?.(receiveEventData);
 					} else {
 						// Case 2: new exists, old exists, new is different from old
-
-						// Set the new receiver (automatically resetting old).
-						setReceiverId(receiverId);
 
 						// Call the protocol event callbacks for exiting the old receiver...
 						draggedProtocol.onDragExit?.({
@@ -580,9 +536,6 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 				} else {
 					// Case 3: new exists, old does not exist
 
-					// Set the new receiver.
-					setReceiverId(receiverId);
-
 					// Call the protocol event callbacks for entering the new receiver.
 					draggedProtocol.onDragEnter?.(dragEventData);
 					receiverProtocol.onReceiveDragEnter?.(receiveEventData);
@@ -590,14 +543,8 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			} else if (oldReceiverId) {
 				// Case 4: new does not exist, old exists
 
-				// Reset the old receiver. (Includes activity update.)
+				// Reset the old receiver.
 				resetReceiver();
-
-				// Prepare activity update for dragged item.
-				activities.push({
-					id: draggedId,
-					activity: { draggingOverReceiver: undefined },
-				});
 
 				// Call the protocol event callbacks for exiting the old receiver.
 				draggedProtocol.onDragExit?.({
@@ -621,11 +568,6 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 				// Call the protocol event callback for dragging.
 				draggedProtocol.onDrag?.({ screenPosition });
 			}
-
-			// If there are any updates queued, dispatch them now.
-			if (activities.length > 0) {
-				updateViewActivities({ activities });
-			}
 		},
 		[
 			getAbsoluteViewData,
@@ -636,21 +578,14 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			findMonitorsAndReceiver,
 			resetDrag,
 			resetReceiver,
-			setReceiverId,
+			updateReceiver,
 			setMonitorIds,
-			updateViewActivities,
 			debug,
 		],
 	);
 
-	useEffect(() => {
-		if (debug) {
-			console.log('Rendering drax state');
-		}
-	});
-
 	const value: DraxContextValue = {
-		getViewData,
+		getViewState,
 		getTrackingStatus,
 		registerView,
 		unregisterView,
@@ -668,7 +603,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			hover.push((
 				<Animated.View
 					key={`hover-${draggedId}`}
-					style={{ transform: draggedData.activity.dragOffset.getTranslateTransform() }}
+					// style={{ transform: draggedData.activity.dragOffset.getTranslateTransform() }}
 				>
 					{hoverView}
 				</Animated.View>

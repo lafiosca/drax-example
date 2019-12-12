@@ -21,6 +21,7 @@ import {
 	AnimatedViewRefType,
 	DraxViewDragStatus,
 	DraxViewReceiveStatus,
+	DraxGestureEvent,
 } from './types';
 import { defaultLongPressDelay } from './params';
 
@@ -67,7 +68,6 @@ export const DraxView = (
 		parent,
 		scrollPositionRef,
 		children,
-		translateDrag = true,
 		longPressDelay = defaultLongPressDelay,
 		id: idProp,
 		draggable: draggableProp,
@@ -114,7 +114,7 @@ export const DraxView = (
 
 	// Connect with Drax.
 	const {
-		getViewData,
+		getViewState,
 		getTrackingStatus,
 		registerView,
 		unregisterView,
@@ -228,16 +228,16 @@ export const DraxView = (
 
 	// Connect gesture state change handling into Drax context, tied to this id.
 	const onHandlerStateChange = useCallback(
-		(event: LongPressGestureHandlerStateChangeEvent) => handleGestureStateChange(id, event),
+		({ nativeEvent }: LongPressGestureHandlerStateChangeEvent) => handleGestureStateChange(id, nativeEvent),
 		[id, handleGestureStateChange],
 	);
 
 	// Create throttled gesture event handler, tied to this id.
 	const throttledHandleGestureEvent = useCallback(
 		throttle(
-			(nativeEvent: LongPressGestureHandlerGestureEvent['nativeEvent']) => {
+			(event: DraxGestureEvent) => {
 				// Pass the event up to the Drax context.
-				handleGestureEvent(id, nativeEvent);
+				handleGestureEvent(id, event);
 			},
 			33,
 		),
@@ -325,7 +325,7 @@ export const DraxView = (
 	);
 
 	// Retrieve data for building styles.
-	const activity = getViewData(id)?.activity;
+	const viewState = getViewState(id);
 	const { dragging, receiving } = getTrackingStatus();
 
 	// Use `any[]` here because the view style typings don't account for animated views.
@@ -334,16 +334,16 @@ export const DraxView = (
 		style,
 	];
 
-	if (activity) {
+	if (viewState) {
 		// First apply style overrides for drag state.
-		if (activity.dragState === DraxViewDragStatus.Dragging) {
+		if (viewState.dragStatus === DraxViewDragStatus.Dragging) {
 			styles.push(draggingStyle);
 			if (receiving) {
 				styles.push(draggingWithReceiverStyle);
 			} else {
 				styles.push(draggingWithoutReceiverStyle);
 			}
-		} else if (activity.dragState === DraxViewDragStatus.Released) {
+		} else if (viewState.dragStatus === DraxViewDragStatus.Released) {
 			styles.push(dragReleasedStyle);
 		} else {
 			styles.push(dragInactiveStyle);
@@ -358,19 +358,10 @@ export const DraxView = (
 		}
 
 		// Next apply style overrides for receiving state.
-		if (activity.receiverState === DraxViewReceiveStatus.Receiving) {
+		if (viewState.receiveStatus === DraxViewReceiveStatus.Receiving) {
 			styles.push(receivingStyle);
 		} else {
 			styles.push(receiverInactiveStyle);
-		}
-
-		// Finally apply drag translation/elevation.
-		if (activity.dragState !== DraxViewDragStatus.Inactive && translateDrag) {
-			styles.push({
-				transform: activity.dragOffset.getTranslateTransform(),
-				zIndex: 10, // Bring it up high, but this only works if Drax views are siblings.
-				elevation: 10,
-			});
 		}
 	}
 

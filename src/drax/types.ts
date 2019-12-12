@@ -203,12 +203,16 @@ export interface DraxAbsoluteViewData extends DraxViewData {
 	absoluteMeasurements: DraxViewMeasurements;
 }
 
-/** Combination of id and absolute data for a view found when checking a position */
-export interface DraxFoundView {
+/** Wrapper of id and absolute data for a view */
+export interface DraxAbsoluteViewEntry {
 	/** The view's unique identifier */
 	id: string;
-	/* The view's data */
+	/* The view's absolute data */
 	data: DraxAbsoluteViewData;
+}
+
+/** Wrapper of id and absolute data for a view found when checking a position */
+export interface DraxFoundAbsoluteViewEntry extends DraxAbsoluteViewEntry {
 	/** Position, relative to the view, of the touch for which it was found */
 	relativePosition: Position;
 	/** Position/dimensions ratio, relative to the view, of the touch for which it was found */
@@ -303,6 +307,10 @@ export interface StartDragPayload {
 	parentStartPosition: Position;
 	/** The dragged view's unique identifier */
 	draggedId: string;
+	/** The relative offset within the view of where it was grabbed */
+	grabOffset: Position;
+	/** The relative offset/dimensions ratio within the view of where it was grabbed */
+	grabOffsetRatio: Position;
 }
 
 /** Payload for registering a Drax view */
@@ -337,19 +345,28 @@ export interface UpdateViewMeasurementsPayload {
 	measurements: DraxViewMeasurements | undefined;
 }
 
+/** Payload used by Drax provider internally for creating a view's state */
+export interface CreateViewStatePayload {
+	/** The view's unique identifier */
+	id: string;
+}
+
 /** Payload used by Drax provider internally for updating a view's state */
 export interface UpdateViewStatePayload {
 	/** The view's unique identifier */
 	id: string;
 	/** The view state update */
-	viewState: Partial<DraxViewState>;
+	viewStateUpdate: Partial<DraxViewState>;
 }
 
-/** Payload used by Drax provider internally for updating multiple views' states */
-export interface UpdateViewStatesPayload {
-	/** The view state update payloads */
-	viewStates: UpdateViewStatePayload[];
+/** Payload used by Drax provider internally for deleting a view's state */
+export interface DeleteViewStatePayload {
+	/** The view's unique identifier */
+	id: string;
 }
+
+/** Payload used by Drax provider internally for updating tracking status */
+export interface UpdateTrackingStatusPayload extends Partial<DraxTrackingStatus> {}
 
 /** Context value used internally by Drax provider */
 export interface DraxContextValue {
@@ -389,9 +406,6 @@ export interface DraxViewParent {
 
 /** Props for a DraxView; combines protocol props and standard view props */
 export interface DraxViewProps extends DraxProtocolProps, ViewProps {
-	/** If true, translate the view position and elevate while this view is dragged; defaults to true */
-	translateDrag?: boolean;
-
 	/** Additional view style applied while this view is not being dragged or released */
 	dragInactiveStyle?: ViewProps['style'];
 
