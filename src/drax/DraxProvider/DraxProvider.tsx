@@ -2,7 +2,9 @@ import React, {
 	FunctionComponent,
 	useCallback,
 	useEffect,
+	ReactNodeArray,
 } from 'react';
+import { Animated, View, StyleSheet } from 'react-native';
 import {
 	State,
 	LongPressGestureHandlerStateChangeEvent,
@@ -14,8 +16,8 @@ import {
 	LongPressGestureHandlerGestureEvent,
 	DraxProviderProps,
 	UpdateViewActivityPayload,
-	DraxReceiverViewState,
-	DraxDraggedViewState,
+	DraxViewReceiveStatus,
+	DraxViewDragStatus,
 	DraxContextValue,
 } from '../types';
 import { getRelativePosition } from '../math';
@@ -344,7 +346,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 				updateViewActivity({
 					id,
 					activity: {
-						dragState: DraxDraggedViewState.Dragging,
+						dragState: DraxViewDragStatus.Dragging,
 						grabOffset: { x: grabX, y: grabY },
 						grabOffsetRatio: {
 							x: grabX / width,
@@ -515,7 +517,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 				activities.push({
 					id: receiverId,
 					activity: {
-						receiverState: DraxReceiverViewState.Receiving,
+						receiverState: DraxViewReceiveStatus.Receiving,
 						receiverOffset: receiver.relativePosition,
 						receiverOffsetRatio: receiver.relativePositionRatio,
 						receivingDrag: {
@@ -657,9 +659,32 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		handleGestureStateChange,
 		handleGestureEvent,
 	};
+
+	const hover: ReactNodeArray = [];
+	const { id: draggedId, data: draggedData } = getTrackingDragged() ?? {};
+	if (draggedData) {
+		const hoverView = draggedData.protocol.renderHoverView?.({});
+		if (hoverView) {
+			hover.push((
+				<Animated.View
+					key={`hover-${draggedId}`}
+					style={{ transform: draggedData.activity.dragOffset.getTranslateTransform() }}
+				>
+					{hoverView}
+				</Animated.View>
+			));
+		}
+	}
+
 	return (
 		<DraxContext.Provider value={value}>
 			{children}
+			<View
+				style={StyleSheet.absoluteFill}
+				pointerEvents="none"
+			>
+				{hover}
+			</View>
 		</DraxContext.Provider>
 	);
 };

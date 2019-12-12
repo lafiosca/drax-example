@@ -19,8 +19,8 @@ import {
 	LongPressGestureHandlerGestureEvent,
 	DraxViewProps,
 	AnimatedViewRefType,
-	DraxDraggedViewState,
-	DraxReceiverViewState,
+	DraxViewDragStatus,
+	DraxViewReceiveStatus,
 } from './types';
 import { defaultLongPressDelay } from './params';
 
@@ -163,6 +163,9 @@ export const DraxView = (
 	useEffect(
 		() => {
 			if (id) {
+				const renderHoverView = draggable
+					? (() => children)
+					: undefined;
 				updateViewProtocol({
 					id,
 					protocol: {
@@ -183,6 +186,7 @@ export const DraxView = (
 						onMonitorDragDrop,
 						dragReleaseAnimationDelay,
 						dragReleaseAnimationDuration,
+						renderHoverView,
 						draggable,
 						receptive,
 						monitoring,
@@ -195,6 +199,7 @@ export const DraxView = (
 		[
 			id,
 			updateViewProtocol,
+			children,
 			onDragStart,
 			onDrag,
 			onDragEnter,
@@ -312,6 +317,13 @@ export const DraxView = (
 		[id, registration, measure],
 	);
 
+	useEffect(
+		() => {
+			console.log('throttle function replaced');
+		},
+		[throttledHandleGestureEvent],
+	);
+
 	// Retrieve data for building styles.
 	const activity = getViewData(id)?.activity;
 	const { dragging, receiving } = getTrackingStatus();
@@ -321,16 +333,17 @@ export const DraxView = (
 		defaultStyle,
 		style,
 	];
+
 	if (activity) {
 		// First apply style overrides for drag state.
-		if (activity.dragState === DraxDraggedViewState.Dragging) {
+		if (activity.dragState === DraxViewDragStatus.Dragging) {
 			styles.push(draggingStyle);
 			if (receiving) {
 				styles.push(draggingWithReceiverStyle);
 			} else {
 				styles.push(draggingWithoutReceiverStyle);
 			}
-		} else if (activity.dragState === DraxDraggedViewState.Released) {
+		} else if (activity.dragState === DraxViewDragStatus.Released) {
 			styles.push(dragReleasedStyle);
 		} else {
 			styles.push(dragInactiveStyle);
@@ -345,14 +358,14 @@ export const DraxView = (
 		}
 
 		// Next apply style overrides for receiving state.
-		if (activity.receiverState === DraxReceiverViewState.Receiving) {
+		if (activity.receiverState === DraxViewReceiveStatus.Receiving) {
 			styles.push(receivingStyle);
 		} else {
 			styles.push(receiverInactiveStyle);
 		}
 
 		// Finally apply drag translation/elevation.
-		if (activity.dragState !== DraxDraggedViewState.Inactive && translateDrag) {
+		if (activity.dragState !== DraxViewDragStatus.Inactive && translateDrag) {
 			styles.push({
 				transform: activity.dragOffset.getTranslateTransform(),
 				zIndex: 10, // Bring it up high, but this only works if Drax views are siblings.

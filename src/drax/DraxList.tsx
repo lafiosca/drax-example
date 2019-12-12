@@ -18,7 +18,7 @@ import uuid from 'uuid/v4';
 import {
 	DraxListProps,
 	DraxMonitorEventData,
-	DraxListScrollState,
+	DraxListScrollStatus,
 	Position,
 	DraxViewMeasurements,
 } from './types';
@@ -54,7 +54,7 @@ export const DraxList = <T extends unknown>(
 	const scrollPositionRef = useRef<Position>({ x: 0, y: 0 });
 
 	// Auto-scrolling state.
-	const scrollStateRef = useRef(DraxListScrollState.Inactive);
+	const scrollStateRef = useRef(DraxListScrollStatus.Inactive);
 
 	// Auto-scrolling interval.
 	const scrollIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
@@ -140,14 +140,14 @@ export const DraxList = <T extends unknown>(
 				prevOffset = scrollPositionRef.current.y;
 			}
 			const jumpLength = containerLength * 0.2;
-			if (scrollStateRef.current === DraxListScrollState.ForwardSlow) {
+			if (scrollStateRef.current === DraxListScrollStatus.Forward) {
 				const maxOffset = contentLength - containerLength;
 				if (prevOffset < maxOffset) {
 					const offset = Math.min(prevOffset + jumpLength, maxOffset);
 					console.log(`auto-scroll forward to ${offset}`);
 					flatList.scrollToOffset({ offset });
 				}
-			} else if (scrollStateRef.current === DraxListScrollState.BackSlow) {
+			} else if (scrollStateRef.current === DraxListScrollStatus.Back) {
 				if (prevOffset > 0) {
 					const offset = Math.max(prevOffset - jumpLength, 0);
 					console.log(`auto-scroll back to ${offset}`);
@@ -200,13 +200,13 @@ export const DraxList = <T extends unknown>(
 			console.log('onMonitorDragOver');
 			const ratio = horizontal ? relativePositionRatio.x : relativePositionRatio.y;
 			if (ratio > 0.1 && ratio < 0.9) {
-				scrollStateRef.current = DraxListScrollState.Inactive;
+				scrollStateRef.current = DraxListScrollStatus.Inactive;
 				stopScroll();
 			} else {
 				if (ratio >= 0.9) {
-					scrollStateRef.current = DraxListScrollState.ForwardSlow;
+					scrollStateRef.current = DraxListScrollStatus.Forward;
 				} else if (ratio <= 0.1) {
-					scrollStateRef.current = DraxListScrollState.BackSlow;
+					scrollStateRef.current = DraxListScrollStatus.Back;
 				}
 				startScroll();
 			}
@@ -217,7 +217,7 @@ export const DraxList = <T extends unknown>(
 	// Monitor drag exits to stop scrolling.
 	const onMonitorDragEnd = useCallback(
 		() => {
-			scrollStateRef.current = DraxListScrollState.Inactive;
+			scrollStateRef.current = DraxListScrollStatus.Inactive;
 			stopScroll();
 		},
 		[stopScroll],

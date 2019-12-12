@@ -4,16 +4,17 @@ import uuid from 'uuid/v4';
 
 import {
 	DraxState,
-	DraxActivity,
-	DraxDraggedViewState,
-	DraxReceiverViewState,
+	DraxInternalState,
+	DraxViewState,
+	DraxViewDragStatus,
+	DraxViewReceiveStatus,
 	DraxProtocol,
 	RegisterViewPayload,
 	UnregisterViewPayload,
 	UpdateViewProtocolPayload,
 	UpdateViewMeasurementsPayload,
-	UpdateViewActivityPayload,
-	UpdateViewActivitiesPayload,
+	UpdateViewStatePayload,
+	UpdateViewStatesPayload,
 	DraxViewData,
 	DraxViewMeasurements,
 	Position,
@@ -38,28 +39,37 @@ const createInitialProtocol = (): DraxProtocol => ({
 	monitoring: false,
 });
 
-/** Create the initial empty activity data for a newly registered view. */
-const createInitialActivity = (): DraxActivity => ({
-	dragState: DraxDraggedViewState.Inactive,
-	dragOffset: new Animated.ValueXY({ x: 0, y: 0 }),
+/** Create the initial empty view state data for a newly registered view. */
+const createInitialViewState = (): DraxViewState => ({
+	dragStatus: DraxViewDragStatus.Inactive,
+	dragScreenPosition: new Animated.ValueXY({ x: 0, y: 0 }),
 	grabOffset: undefined,
 	grabOffsetRatio: undefined,
 	draggingOverReceiver: undefined,
-	receiverState: DraxReceiverViewState.Inactive,
-	receiverOffset: undefined,
-	receiverOffsetRatio: undefined,
+	receiveStatus: DraxViewReceiveStatus.Inactive,
+	receiveOffset: undefined,
+	receiveOffsetRatio: undefined,
 	receivingDrag: undefined,
 });
 
-/** Create an initial empty Drax state. */
-const createInitialState = (): DraxState => ({
+/** Create an initial empty Drax internal state. */
+const createInitialInternalState = (): DraxInternalState => ({
 	viewIds: [],
 	viewDataById: {},
 	tracking: undefined,
 });
 
+/** Create an initial empty Drax state. */
+const createInitialState = (): DraxState => ({
+	viewStateById: {},
+	trackingStatus: {
+		dragging: false,
+		receiving: false,
+	},
+});
+
 /** Get data for a registered view by its id. */
-const getViewDataInState = (state: DraxState, id: string | undefined): DraxViewData | undefined => (
+const getViewDataInState = (state: DraxInternalState, id: string | undefined): DraxViewData | undefined => (
 	(id && state.viewIds.includes(id)) ? state.viewDataById[id] : undefined
 );
 
@@ -329,7 +339,7 @@ const resetReceiverInState = (state: DraxState) => {
 	updateViewActivityInState(state, {
 		id: receiverId,
 		activity: {
-			receiverState: DraxReceiverViewState.Inactive,
+			receiverState: DraxViewReceiveStatus.Inactive,
 			receiverOffset: undefined,
 			receiverOffsetRatio: undefined,
 			receivingDrag: undefined,
@@ -350,7 +360,7 @@ const resetDragInState = (state: DraxState) => {
 	updateViewActivityInState(state, {
 		id: draggedId,
 		activity: {
-			dragState: DraxDraggedViewState.Released,
+			dragState: DraxViewDragStatus.Released,
 			grabOffset: undefined,
 			grabOffsetRatio: undefined,
 			draggingOverReceiver: undefined,
@@ -373,7 +383,7 @@ const resetDragInState = (state: DraxState) => {
 			if (finished) {
 				updateViewActivityInState(state, {
 					id: draggedId,
-					activity: { dragState: DraxDraggedViewState.Inactive },
+					activity: { dragState: DraxViewDragStatus.Inactive },
 				});
 			}
 		});
