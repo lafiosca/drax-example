@@ -1,4 +1,5 @@
 import { useCallback, useRef, useMemo } from 'react';
+import { Animated } from 'react-native';
 
 import { actions, DraxAction, DraxDispatch } from './actions';
 import {
@@ -17,6 +18,7 @@ import {
 	StartDragPayload,
 	DraxAbsoluteViewEntry,
 	DraxAbsoluteViewData,
+	DraxViewState,
 } from '../types';
 import {
 	clipMeasurements,
@@ -35,7 +37,8 @@ import {
 const createInitialRegistry = (): DraxRegistry => ({
 	viewIds: [],
 	viewDataById: {},
-	tracking: undefined,
+	drag: undefined,
+	released: [],
 });
 
 /** Create the initial empty protocol data for a newly registered view. */
@@ -194,24 +197,25 @@ const findMonitorsAndReceiverInRegistry = (
 
 /** Get id and data for the currently dragged view, if any. */
 const getTrackingDraggedFromRegistry = (registry: DraxRegistry) => (
-	registry.tracking && getAbsoluteViewEntryFromRegistry(registry, registry.tracking.draggedId)
+	registry.drag
+		&& getAbsoluteViewEntryFromRegistry(registry, registry.drag.draggedId)
 );
 
 /** Get id and data for the currently receiving view, if any. */
 const getTrackingReceiverFromRegistry = (registry: DraxRegistry) => (
-	registry.tracking?.receiverId
-		? getAbsoluteViewEntryFromRegistry(registry, registry.tracking.receiverId)
+	registry.drag?.receiver?.receiverId
+		? getAbsoluteViewEntryFromRegistry(registry, registry.drag.receiver.receiverId)
 		: undefined
 );
 
 /** Get ids for all currently monitoring views. */
 const getTrackingMonitorIdsFromRegistry = (registry: DraxRegistry) => (
-	registry.tracking?.monitorIds || []
+	registry.drag?.monitorIds || []
 );
 
 /** Get id and data for all currently monitoring views. */
 const getTrackingMonitorsFromRegistry = (registry: DraxRegistry) => (
-	registry.tracking?.monitorIds
+	registry.drag?.monitorIds
 		.map((id) => getAbsoluteViewEntryFromRegistry(registry, id))
 		.filter((value): value is DraxAbsoluteViewEntry => !!value)
 		|| []
@@ -222,7 +226,7 @@ const getTrackingMonitorsFromRegistry = (registry: DraxRegistry) => (
  * coordinates within the immediate parent view of the dragged view.
  */
 const getDragPositionDataFromRegistry = (registry: DraxRegistry, parentPosition: Position) => {
-	if (!registry.tracking) {
+	if (!registry.drag) {
 		return undefined;
 	}
 	/*
@@ -230,7 +234,7 @@ const getDragPositionDataFromRegistry = (registry: DraxRegistry, parentPosition:
 	 *   screen coordinates of drag start
 	 *   + translation offset of drag
 	 */
-	const { screenStartPosition, parentStartPosition } = registry.tracking;
+	const { screenStartPosition, parentStartPosition } = registry.drag;
 	const translation = {
 		x: parentPosition.x - parentStartPosition.x,
 		y: parentPosition.y - parentStartPosition.y,
@@ -289,16 +293,16 @@ const updateViewMeasurementsInRegistry = (
 
 /** Reset the receiver in drag tracking, if any. */
 const resetReceiverInRegistry = (registry: DraxRegistry): DraxAction[] => {
-	if (!registry.tracking) {
+	if (!registry.drag) {
 		return [];
 	}
-	const { draggedId, receiverId } = registry.tracking;
-	if (!receiverId) {
+	const { draggedId, receiver } = registry.drag;
+	if (!receiver) {
 		console.log('no receiver to clear');
 		return [];
 	}
 	console.log('clearing receiver');
-	registry.tracking.receiverId = undefined;
+	registry.drag.receiver = undefined;
 	return [
 		actions.updateTrackingStatus({ receiving: false }),
 		actions.updateViewState({
@@ -308,7 +312,7 @@ const resetReceiverInRegistry = (registry: DraxRegistry): DraxAction[] => {
 			},
 		}),
 		actions.updateViewState({
-			id: receiverId,
+			id: receiver.receiverId,
 			viewStateUpdate: {
 				receiveStatus: DraxViewReceiveStatus.Inactive,
 				receiveOffset: undefined,
@@ -321,13 +325,13 @@ const resetReceiverInRegistry = (registry: DraxRegistry): DraxAction[] => {
 
 /** Reset drag tracking, if any. */
 const resetDragInRegistry = (registry: DraxRegistry): DraxAction[] => {
-	if (!registry.tracking) {
+	if (!registry.drag) {
 		return [];
 	}
 	const reactions = resetReceiverInRegistry(registry);
 	console.log('clearing drag');
-	const { draggedId } = registry.tracking;
-	registry.tracking = undefined;
+	const { draggedId } = registry.drag;
+	registry.drag = undefined;
 	reactions.push(actions.updateTrackingStatus({ dragging: false }));
 	reactions.push(actions.updateViewState({
 		id: draggedId,
@@ -376,23 +380,50 @@ const startDragInRegistry = (
 	}: StartDragPayload,
 ): DraxAction[] => {
 	const reactions = resetDragInRegistry(registry);
-	registry.tracking = {
+	const dragScreenPosition = new Animated.ValueXY(screenStartPosition);
+	const dragOffset = new Animated.ValueXY(grabOffset);
+	registry.drag = {
 		screenStartPosition,
 		parentStartPosition,
 		draggedId,
-		receiverId: undefined,
+		dragScreenPosition,
+		dragOffset,
+		receiver: undefined,
 		monitorIds: [],
 	};
 	reactions.push(actions.updateTrackingStatus({ dragging: true }));
 	reactions.push(actions.updateViewState({
 		id: draggedId,
 		viewStateUpdate: {
-			dragStatus: DraxViewDragStatus.Dragging,
+			dragScreenPosition,
+			dragOffset,
 			grabOffset,
 			grabOffsetRatio,
+			dragStatus: DraxViewDragStatus.Dragging,
 		},
 	}));
 	return reactions;
+};
+
+/** Update drag position. */
+const updateDragPositionInRegistry = (
+	registry: DraxRegistry,
+	screenPosition: Position,
+): DraxAction[] => {
+	if (!registry.drag) {
+		return [];
+	}
+	const { absoluteMeasurements } = getTrackingDraggedFromRegistry(registry)?.data ?? {};
+	if (!absoluteMeasurements) {
+		return [];
+	}
+	const { dragScreenPosition, dragOffset } = registry.drag;
+	dragScreenPosition.setValue(screenPosition);
+	dragOffset.setValue({
+		x: screenPosition.x - absoluteMeasurements.x,
+		y: screenPosition.y - absoluteMeasurements.y,
+	});
+	return [];
 };
 
 /** Update receiver for a drag. */
@@ -401,7 +432,7 @@ const updateReceiverInRegistry = (
 	receiver: DraxFoundAbsoluteViewEntry,
 	dragged: DraxAbsoluteViewEntry,
 ): DraxAction[] => {
-	if (!registry.tracking) {
+	if (!registry.drag) {
 		return [];
 	}
 	const {
@@ -422,25 +453,44 @@ const updateReceiverInRegistry = (
 		parentId: draggedParentId,
 		protocol: { dragPayload },
 	} = draggedData;
-	const { receiverId: oldReceiverId } = registry.tracking;
+	const oldReceiver = registry.drag.receiver;
 	const reactions: DraxAction[] = [];
-	if (oldReceiverId !== undefined && oldReceiverId !== receiverId) {
-		reactions.push(...resetReceiverInRegistry(registry));
+	let receiverUpdate: Partial<DraxViewState> = {
+		receivingDrag: {
+			id: draggedId,
+			parentId: draggedParentId,
+			payload: dragPayload,
+		},
+	};
+	if (oldReceiver?.receiverId === receiverId) {
+		// Same receiver, update existing offsets.
+		oldReceiver.receiveOffset.setValue(relativePosition);
+		oldReceiver.receiveOffsetRatio.setValue(relativePositionRatio);
+	} else {
+		// New receiver.
+		if (oldReceiver) {
+			// Clear the old receiver.
+			reactions.push(...resetReceiverInRegistry(registry));
+		}
+		// Create new offsets.
+		const receiveOffset = new Animated.ValueXY(relativePosition);
+		const receiveOffsetRatio = new Animated.ValueXY(relativePositionRatio);
+		registry.drag.receiver = {
+			receiverId,
+			receiveOffset,
+			receiveOffsetRatio,
+		};
+		receiverUpdate = {
+			...receiverUpdate,
+			receiveOffset,
+			receiveOffsetRatio,
+			receiveStatus: DraxViewReceiveStatus.Receiving,
+		};
+		reactions.push(actions.updateTrackingStatus({ receiving: true }));
 	}
-	registry.tracking.receiverId = receiverId;
-	reactions.push(actions.updateTrackingStatus({ receiving: true }));
 	reactions.push(actions.updateViewState({
 		id: receiverId,
-		viewStateUpdate: {
-			receiveStatus: DraxViewReceiveStatus.Receiving,
-			receiveOffset: relativePosition,
-			receiveOffsetRatio: relativePositionRatio,
-			receivingDrag: {
-				id: draggedId,
-				parentId: draggedParentId,
-				payload: dragPayload,
-			},
-		},
+		viewStateUpdate: receiverUpdate,
 	}));
 	reactions.push(actions.updateViewState({
 		id: draggedId,
@@ -457,8 +507,8 @@ const updateReceiverInRegistry = (
 
 /** Set the monitors for a drag. */
 const setMonitorIdsInRegistry = (registry: DraxRegistry, monitorIds: string[]): DraxAction[] => {
-	if (registry.tracking) {
-		registry.tracking.monitorIds = monitorIds;
+	if (registry.drag) {
+		registry.drag.monitorIds = monitorIds;
 	}
 	return [];
 };
@@ -472,9 +522,9 @@ const unregisterViewInRegistry = (
 	const { [id]: removed, ...viewDataById } = registry.viewDataById;
 	registry.viewIds = registry.viewIds.filter((thisId) => thisId !== id);
 	registry.viewDataById = viewDataById;
-	if (registry.tracking?.draggedId === id) {
+	if (registry.drag?.draggedId === id) {
 		reactions.push(...resetDragInRegistry(registry));
-	} else if (registry.tracking?.receiverId === id) {
+	} else if (registry.drag?.receiver?.receiverId === id) {
 		reactions.push(...resetReceiverInRegistry(registry));
 	}
 	reactions.push(actions.deleteViewState({ id }));
@@ -609,6 +659,14 @@ export const useDraxRegistry = (dispatch: DraxDispatch) => {
 		[multiDispatch],
 	);
 
+	/** Update drag position. */
+	const updateDragPosition = useCallback(
+		(screenPosition: Position) => (
+			multiDispatch(updateDragPositionInRegistry(registryRef.current, screenPosition))
+		),
+		[multiDispatch],
+	);
+
 	/** Update the receiver for a drag. */
 	const updateReceiver = useCallback(
 		(receiver: DraxFoundAbsoluteViewEntry, dragged: DraxAbsoluteViewEntry) => (
@@ -625,7 +683,9 @@ export const useDraxRegistry = (dispatch: DraxDispatch) => {
 
 	/** Unregister a Drax view. */
 	const unregisterView = useCallback(
-		(payload: UnregisterViewPayload) => multiDispatch(unregisterViewInRegistry(registryRef.current, payload)),
+		(payload: UnregisterViewPayload) => (
+			multiDispatch(unregisterViewInRegistry(registryRef.current, payload))
+		),
 		[multiDispatch],
 	);
 
@@ -646,6 +706,7 @@ export const useDraxRegistry = (dispatch: DraxDispatch) => {
 			resetReceiver,
 			resetDrag,
 			startDrag,
+			updateDragPosition,
 			updateReceiver,
 			setMonitorIds,
 			unregisterView,
@@ -665,6 +726,7 @@ export const useDraxRegistry = (dispatch: DraxDispatch) => {
 			resetReceiver,
 			resetDrag,
 			startDrag,
+			updateDragPosition,
 			updateReceiver,
 			setMonitorIds,
 			unregisterView,

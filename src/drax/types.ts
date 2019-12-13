@@ -219,24 +219,40 @@ export interface DraxFoundAbsoluteViewEntry extends DraxAbsoluteViewEntry {
 	relativePositionRatio: Position;
 }
 
+/** Tracking information about the current receiver, used internally by the Drax provider */
+export interface DraxTrackingReceiver {
+	/** View id of the current receiver */
+	receiverId: string;
+	/** The relative offset the drag point in the receiving view */
+	receiveOffset: Animated.ValueXY;
+	/** The relative offset/dimensions ratio of the drag point in the receiving view */
+	receiveOffsetRatio: Animated.ValueXY;
+}
+
 /** Tracking information about the current drag, used internally by the Drax provider */
-export interface DraxTracking {
-	/** Start position of the drag in screen coordinates */
-	screenStartPosition: {
-		x: number;
-		y: number;
-	};
-	/** Start position of the drag relative to parent view */
-	parentStartPosition: {
-		x: number;
-		y: number;
-	}
+export interface DraxTrackingDrag {
 	/** View id of the dragged view */
 	draggedId: string;
-	/** View id of the current drag receiver, if any */
-	receiverId?: string;
+	/** Start position of the drag in screen coordinates */
+	screenStartPosition: Position;
+	/** Start position of the drag relative to dragged view's immediate parent */
+	parentStartPosition: Position;
+	/** The position in screen coordinates of the drag point */
+	dragScreenPosition: Animated.ValueXY;
+	/** The relative offset of the drag point from the view */
+	dragOffset: Animated.ValueXY;
+	/** Tracking information about the current drag receiver, if any */
+	receiver?: DraxTrackingReceiver;
 	/** View ids of monitors that the drag is currently over */
 	monitorIds: string[];
+}
+
+/** Tracking information about a view that was released and is snapping back */
+export interface DraxTrackingRelease {
+	/** View id of the released view */
+	id: string;
+	/** The position in screen coordinates of the virtual drag point */
+	dragScreenPosition: Animated.ValueXY;
 }
 
 /** Tracking status for reference in views */
@@ -252,8 +268,10 @@ export interface DraxViewState {
 	/** Current drag status of the view: Dragged, Released, or Inactive */
 	dragStatus: DraxViewDragStatus;
 
-	/** Position in screen coordinates of the drag, non-zero when drag state is Dragged or Released */
-	dragScreenPosition: Animated.ValueXY;
+	/** If being dragged or released, the position in screen coordinates of the drag point */
+	dragScreenPosition?: Animated.ValueXY;
+	/** If being dragged or released, the relative offset of the drag point from the view */
+	dragOffset?: Animated.ValueXY;
 
 	/** If being dragged, the relative offset of where the view was grabbed */
 	grabOffset?: Position;
@@ -266,10 +284,10 @@ export interface DraxViewState {
 	/** Current receive status of the view: Receiving or Inactive */
 	receiveStatus: DraxViewReceiveStatus;
 
-	/** If receiving a drag, the relative offset of where the drag is in the view */
-	receiveOffset?: Position;
-	/** If receiving a drag, the relative offset/dimensions ratio of where the drag is in the view */
-	receiveOffsetRatio?: Position;
+	/** If receiving a drag, the relative offset the drag point in the view */
+	receiveOffset?: Animated.ValueXY;
+	/** If receiving a drag, the relative offset/dimensions ratio of the drag point in the view */
+	receiveOffsetRatio?: Animated.ValueXY;
 
 	/** Data about the dragged item this view is receiving, if any */
 	receivingDrag?: DraxEventViewData;
@@ -284,8 +302,10 @@ export interface DraxRegistry {
 		/** Data about a registered view, keyed by its unique identifier */
 		[id: string]: DraxViewData;
 	};
-	/** Information about the currently tracked drag, if any */
-	tracking?: DraxTracking;
+	/** Information about the current drag, if any */
+	drag?: DraxTrackingDrag;
+	/** Released drags that are snapping back */
+	released: DraxTrackingRelease[];
 }
 
 /** Drax provider render state; maintains render-related data */

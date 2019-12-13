@@ -1,14 +1,13 @@
 import React, {
 	FunctionComponent,
 	useCallback,
-	useEffect,
 	ReactNodeArray,
 } from 'react';
 import { Animated, View, StyleSheet } from 'react-native';
 import { State } from 'react-native-gesture-handler';
 
-import { useDraxRegistry } from './useDraxRegistry';
 import { useDraxState } from './useDraxState';
+import { useDraxRegistry } from './useDraxRegistry';
 import { DraxContext } from '../DraxContext';
 import {
 	DraxProviderProps,
@@ -38,6 +37,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		resetReceiver,
 		resetDrag,
 		startDrag,
+		updateDragPosition,
 		updateReceiver,
 		setMonitorIds,
 		unregisterView,
@@ -416,8 +416,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			const { id: oldReceiverId, data: oldReceiverData } = getTrackingReceiver() ?? {};
 
 			// Always update the drag screen position.
-			// TODO: provide way to update drag position
-			// draggedData.activity.dragOffset.setValue({ x: translation.x, y: translation.y });
+			updateDragPosition(screenPosition);
 
 			const draggedProtocol = draggedData.protocol;
 			const eventDataDragged = {
@@ -578,6 +577,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 			findMonitorsAndReceiver,
 			resetDrag,
 			resetReceiver,
+			updateDragPosition,
 			updateReceiver,
 			setMonitorIds,
 			debug,

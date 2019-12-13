@@ -41,13 +41,3 @@ target 'DraxExample' do
 
   use_native_modules!
 end
-
-target 'DraxExample-tvOS' do
-  # Pods for DraxExample-tvOS
-
-  target 'DraxExample-tvOSTests' do
-    inherit! :search_paths
-    # Pods for testing
-  end
-
-end

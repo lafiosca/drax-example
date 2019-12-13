@@ -1,6 +1,10 @@
-import { useCallback, useReducer, useMemo, useEffect } from 'react';
+import {
+	useCallback,
+	useReducer,
+	useMemo,
+	useEffect,
+} from 'react';
 import { getType } from 'typesafe-actions';
-import { Animated } from 'react-native';
 import isEqual from 'lodash.isequal';
 
 import { actions, DraxAction } from './actions';
@@ -14,7 +18,8 @@ import {
 /** Create the initial empty view state data for a newly registered view. */
 const createInitialViewState = (): DraxViewState => ({
 	dragStatus: DraxViewDragStatus.Inactive,
-	dragScreenPosition: new Animated.ValueXY({ x: 0, y: 0 }),
+	dragScreenPosition: undefined,
+	dragOffset: undefined,
 	grabOffset: undefined,
 	grabOffsetRatio: undefined,
 	draggingOverReceiver: undefined,
