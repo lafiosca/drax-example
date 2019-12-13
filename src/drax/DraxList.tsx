@@ -83,7 +83,7 @@ export const DraxList = <T extends unknown>(
 					onDragDrop={({ screenPosition, receiver: { parentId, payload } }) => {
 						console.log(`Dragged ${id}[${index}] onto ${parentId}[${payload}] at (${screenPosition.x}, ${screenPosition.y})`);
 					}}
-					draggingStyle={{ backgroundColor: 'red' }}
+					draggingStyle={{ opacity: 0.2 }}
 					receivingStyle={{ backgroundColor: 'magenta' }}
 					parent={{ id, nodeHandleRef }}
 				>
@@ -161,7 +161,7 @@ export const DraxList = <T extends unknown>(
 	// Start the auto-scrolling interval.
 	const startScroll = useCallback(
 		() => {
-			console.log('start auto-scroll');
+			// console.log('start auto-scroll');
 			if (scrollIntervalRef.current) {
 				return;
 			}

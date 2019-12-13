@@ -1,4 +1,9 @@
-import { useCallback, useRef, useMemo } from 'react';
+import React, {
+	useCallback,
+	useRef,
+	useMemo,
+	ReactNodeArray,
+} from 'react';
 import { Animated } from 'react-native';
 
 import { actions, DraxAction, DraxDispatch } from './actions';
@@ -140,9 +145,12 @@ const findMonitorsAndReceiverInRegistry = (
 	const monitors: DraxFoundAbsoluteViewEntry[] = [];
 	let receiver: DraxFoundAbsoluteViewEntry | undefined;
 
+	console.log(`find monitors and receiver for screen position (${screenPosition.x}, ${screenPosition.y})`);
 	registry.viewIds.forEach((targetId) => {
+		console.log(`checking target id ${targetId}`);
 		if (targetId === excludeViewId) {
 			// Don't consider the excluded view.
+			console.log('excluded');
 			return;
 		}
 
@@ -150,6 +158,7 @@ const findMonitorsAndReceiverInRegistry = (
 
 		if (!target) {
 			// This should never happen, but just in case.
+			console.log('no view data found');
 			return;
 		}
 
@@ -157,6 +166,7 @@ const findMonitorsAndReceiverInRegistry = (
 
 		if (!receptive && !monitoring) {
 			// Only consider receptive or monitoring views.
+			console.log('not receptive nor monitoring');
 			return;
 		}
 
@@ -164,8 +174,11 @@ const findMonitorsAndReceiverInRegistry = (
 
 		if (!absoluteMeasurements) {
 			// Only consider views for which we have absolute measurements.
+			console.log('failed to find absolute measurements');
 			return;
 		}
+
+		console.log(`absolute measurements: ${JSON.stringify(absoluteMeasurements, null, 2)}`);
 
 		if (isPointInside(screenPosition, absoluteMeasurements)) {
 			// Drag point is within this target.
@@ -181,12 +194,16 @@ const findMonitorsAndReceiverInRegistry = (
 			if (monitoring) {
 				// Add it to the list of monitors.
 				monitors.push(foundView);
+				console.log('it\'s a monitor');
 			}
 
 			if (receptive) {
 				// It's the latest receiver found.
 				receiver = foundView;
+				console.log('it\'s a receiver');
 			}
+		} else {
+			console.log('point is not inside');
 		}
 	});
 	return {
@@ -220,6 +237,26 @@ const getTrackingMonitorsFromRegistry = (registry: DraxRegistry) => (
 		.filter((value): value is DraxAbsoluteViewEntry => !!value)
 		|| []
 );
+
+/** Get the node array of hover views for dragged and released views */
+const getHoverViewsFromRegistry = (registry: DraxRegistry) => {
+	const hoverViews: ReactNodeArray = [];
+	const { id: draggedId, data: draggedData } = getTrackingDraggedFromRegistry(registry) ?? {};
+	if (draggedData) {
+		const hoverView = draggedData.protocol.renderHoverView?.({});
+		if (hoverView) {
+			hoverViews.push((
+				<Animated.View
+					key={`hover-${draggedId}`}
+					style={{ transform: registry.drag!.hoverPosition.getTranslateTransform() }}
+				>
+					{hoverView}
+				</Animated.View>
+			));
+		}
+	}
+	return hoverViews;
+};
 
 /**
  * Get the screen position of a drag already in progress from touch
@@ -259,6 +296,8 @@ const registerViewInRegistry = (
 	// Maintain any existing view data.
 	const existingData = getViewDataFromRegistry(registry, id);
 
+	console.log(`Register view ${id} with parent ${parentId}`);
+
 	registry.viewDataById[id] = {
 		parentId,
 		scrollPositionRef,
@@ -287,6 +326,7 @@ const updateViewMeasurementsInRegistry = (
 ) => {
 	const existingData = getViewDataFromRegistry(registry, id);
 	if (existingData) {
+		console.log(`Update ${id} measurements: ${JSON.stringify(measurements, null, 2)}`);
 		registry.viewDataById[id].measurements = measurements;
 	}
 };
@@ -337,8 +377,11 @@ const resetDragInRegistry = (registry: DraxRegistry): DraxAction[] => {
 		id: draggedId,
 		viewStateUpdate: {
 			dragStatus: DraxViewDragStatus.Inactive,
+			dragScreenPosition: undefined,
+			dragOffset: undefined,
 			grabOffset: undefined,
 			grabOffsetRatio: undefined,
+			hoverPosition: undefined,
 		},
 	}));
 	// TODO: come back to this to fix releases
@@ -382,12 +425,18 @@ const startDragInRegistry = (
 	const reactions = resetDragInRegistry(registry);
 	const dragScreenPosition = new Animated.ValueXY(screenStartPosition);
 	const dragOffset = new Animated.ValueXY(grabOffset);
+	const hoverPosition = new Animated.ValueXY({
+		x: screenStartPosition.x - grabOffset.x,
+		y: screenStartPosition.y - grabOffset.y,
+	});
 	registry.drag = {
 		screenStartPosition,
 		parentStartPosition,
 		draggedId,
 		dragScreenPosition,
 		dragOffset,
+		grabOffset,
+		hoverPosition,
 		receiver: undefined,
 		monitorIds: [],
 	};
@@ -399,6 +448,7 @@ const startDragInRegistry = (
 			dragOffset,
 			grabOffset,
 			grabOffsetRatio,
+			hoverPosition,
 			dragStatus: DraxViewDragStatus.Dragging,
 		},
 	}));
@@ -417,11 +467,20 @@ const updateDragPositionInRegistry = (
 	if (!absoluteMeasurements) {
 		return [];
 	}
-	const { dragScreenPosition, dragOffset } = registry.drag;
+	const {
+		dragScreenPosition,
+		dragOffset,
+		grabOffset,
+		hoverPosition,
+	} = registry.drag;
 	dragScreenPosition.setValue(screenPosition);
 	dragOffset.setValue({
 		x: screenPosition.x - absoluteMeasurements.x,
 		y: screenPosition.y - absoluteMeasurements.y,
+	});
+	hoverPosition.setValue({
+		x: screenPosition.x - grabOffset.x,
+		y: screenPosition.y - grabOffset.y,
 	});
 	return [];
 };
@@ -609,6 +668,12 @@ export const useDraxRegistry = (dispatch: DraxDispatch) => {
 		[],
 	);
 
+	/** Get the node array of hover views for dragged and released views */
+	const getHoverViews = useCallback(
+		() => getHoverViewsFromRegistry(registryRef.current),
+		[],
+	);
+
 	/**
 	 *
 	 * Imperative methods without state reactions (data management only).
@@ -700,6 +765,7 @@ export const useDraxRegistry = (dispatch: DraxDispatch) => {
 			getTrackingMonitors,
 			getDragPositionData,
 			findMonitorsAndReceiver,
+			getHoverViews,
 			registerView,
 			updateViewProtocol,
 			updateViewMeasurements,
@@ -720,6 +786,7 @@ export const useDraxRegistry = (dispatch: DraxDispatch) => {
 			getTrackingMonitors,
 			getDragPositionData,
 			findMonitorsAndReceiver,
+			getHoverViews,
 			registerView,
 			updateViewProtocol,
 			updateViewMeasurements,

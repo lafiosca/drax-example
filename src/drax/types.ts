@@ -241,6 +241,10 @@ export interface DraxTrackingDrag {
 	dragScreenPosition: Animated.ValueXY;
 	/** The relative offset of the drag point from the view */
 	dragOffset: Animated.ValueXY;
+	/** The relative offset within the dragged view of where it was grabbed */
+	grabOffset: Position;
+	/** The position in screen coordinates of the dragged hover view (dragScreenPosition - grabOffset) */
+	hoverPosition: Animated.ValueXY;
 	/** Tracking information about the current drag receiver, if any */
 	receiver?: DraxTrackingReceiver;
 	/** View ids of monitors that the drag is currently over */
@@ -253,6 +257,8 @@ export interface DraxTrackingRelease {
 	id: string;
 	/** The position in screen coordinates of the virtual drag point */
 	dragScreenPosition: Animated.ValueXY;
+	/** The position in screen coordinates of the released hover view */
+	hoverPosition: Animated.ValueXY;
 }
 
 /** Tracking status for reference in views */
@@ -277,6 +283,9 @@ export interface DraxViewState {
 	grabOffset?: Position;
 	/** If being dragged, the relative offset/dimensions ratio of where the view was grabbed */
 	grabOffsetRatio?: Position;
+
+	/** The position in screen coordinates of the dragged hover view (dragScreenPosition - grabOffset) */
+	hoverPosition?: Animated.ValueXY;
 
 	/** Data about the receiver this view is being dragged over, if any */
 	draggingOverReceiver?: DraxEventViewData;

@@ -78,8 +78,8 @@ export const DraxView = (
 ): ReactElement => {
 	// Coalesce protocol props into capabilities.
 	const draggable = draggableProp ?? (
-		!!dragPayload
-		|| !!payload
+		dragPayload !== undefined
+		|| payload !== undefined
 		|| !!onDrag
 		|| !!onDragEnd
 		|| !!onDragEnter
@@ -89,8 +89,8 @@ export const DraxView = (
 		|| !!onDragDrop
 	);
 	const receptive = receptiveProp ?? (
-		!!receiverPayload
-		|| !!payload
+		receiverPayload !== undefined
+		|| payload !== undefined
 		|| !!onReceiveDragEnter
 		|| !!onReceiveDragExit
 		|| !!onReceiveDragOver

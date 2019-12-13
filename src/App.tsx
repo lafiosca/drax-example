@@ -92,7 +92,7 @@ const App = () => {
 	return (
 		<>
 			<StatusBar barStyle="dark-content" />
-			<View style={styles.container}>
+			<SafeAreaView style={styles.container}>
 				{/* <FlatList
 					ref={flatRef}
 					onLayout={({ nativeEvent }) => {
@@ -381,7 +381,7 @@ const App = () => {
 						keyExtractor={(item) => item}
 					/>
 				</DraxProvider>
-			</View>
+			</SafeAreaView>
 		</>
 	);
 };

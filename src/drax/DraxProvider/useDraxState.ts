@@ -140,7 +140,7 @@ export const useDraxState = () => {
 	);
 
 	useEffect(() => {
-		// console.log(`Rendering drax state ${JSON.stringify(state, null, 2)}`);
+		console.log(`Rendering drax state ${JSON.stringify(state, null, 2)}`);
 	});
 
 	return draxState;

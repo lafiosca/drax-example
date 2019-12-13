@@ -31,6 +31,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		getTrackingMonitors,
 		getDragPositionData,
 		findMonitorsAndReceiver,
+		getHoverViews,
 		registerView,
 		updateViewProtocol,
 		updateViewMeasurements,
@@ -595,22 +596,6 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		handleGestureEvent,
 	};
 
-	const hover: ReactNodeArray = [];
-	const { id: draggedId, data: draggedData } = getTrackingDragged() ?? {};
-	if (draggedData) {
-		const hoverView = draggedData.protocol.renderHoverView?.({});
-		if (hoverView) {
-			hover.push((
-				<Animated.View
-					key={`hover-${draggedId}`}
-					// style={{ transform: draggedData.activity.dragOffset.getTranslateTransform() }}
-				>
-					{hoverView}
-				</Animated.View>
-			));
-		}
-	}
-
 	return (
 		<DraxContext.Provider value={value}>
 			{children}
@@ -618,7 +603,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 				style={StyleSheet.absoluteFill}
 				pointerEvents="none"
 			>
-				{hover}
+				{getHoverViews()}
 			</View>
 		</DraxContext.Provider>
 	);
