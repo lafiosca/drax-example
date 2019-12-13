@@ -32,7 +32,7 @@ export const DraxList = <T extends unknown>(
 		id: idProp,
 		...props
 	}: PropsWithChildren<DraxListProps<T>>,
-): ReactElement => {
+): ReactElement | null => {
 	const { horizontal = false } = props;
 
 	// The unique identifer for this list, initialized below.
@@ -97,7 +97,6 @@ export const DraxList = <T extends unknown>(
 	// Track the size of the container view.
 	const onMeasureContainer = useCallback(
 		(measurements: DraxViewMeasurements | undefined) => {
-			console.log(`Measured container view: ${JSON.stringify(measurements, null, 2)}`);
 			containerMeasurementsRef.current = measurements;
 		},
 		[],
@@ -144,13 +143,11 @@ export const DraxList = <T extends unknown>(
 				const maxOffset = contentLength - containerLength;
 				if (prevOffset < maxOffset) {
 					const offset = Math.min(prevOffset + jumpLength, maxOffset);
-					console.log(`auto-scroll forward to ${offset}`);
 					flatList.scrollToOffset({ offset });
 				}
 			} else if (scrollStateRef.current === DraxListScrollStatus.Back) {
 				if (prevOffset > 0) {
 					const offset = Math.max(prevOffset - jumpLength, 0);
-					console.log(`auto-scroll back to ${offset}`);
 					flatList.scrollToOffset({ offset });
 				}
 			}
@@ -161,7 +158,6 @@ export const DraxList = <T extends unknown>(
 	// Start the auto-scrolling interval.
 	const startScroll = useCallback(
 		() => {
-			// console.log('start auto-scroll');
 			if (scrollIntervalRef.current) {
 				return;
 			}
@@ -174,7 +170,6 @@ export const DraxList = <T extends unknown>(
 	// Stop the auto-scrolling interval.
 	const stopScroll = useCallback(
 		() => {
-			// console.log('stop auto-scroll');
 			if (scrollIntervalRef.current) {
 				clearInterval(scrollIntervalRef.current);
 				scrollIntervalRef.current = undefined;
@@ -183,7 +178,7 @@ export const DraxList = <T extends unknown>(
 		[],
 	);
 
-	// Whenever startScroll changes, refresh our interval.
+	// If startScroll changes, refresh our interval.
 	useEffect(
 		() => {
 			if (scrollIntervalRef.current) {
@@ -194,10 +189,16 @@ export const DraxList = <T extends unknown>(
 		[stopScroll, startScroll],
 	);
 
-	// Monitor drags to see if we should scroll.
+	// Monitor drags to react.
 	const onMonitorDragOver = useCallback(
-		({ relativePositionRatio }: DraxMonitorEventData) => {
-			// console.log('onMonitorDragOver');
+		({ dragged, relativePositionRatio }: DraxMonitorEventData) => {
+			// First check if the dragged view is one of our list items.
+			if (dragged.parentId === id) {
+				// It is one of our list items.
+				const index: number = dragged.payload;
+			} else {
+				// It's an external view.
+			}
 			const ratio = horizontal ? relativePositionRatio.x : relativePositionRatio.y;
 			if (ratio > 0.1 && ratio < 0.9) {
 				scrollStateRef.current = DraxListScrollStatus.Inactive;
@@ -211,7 +212,7 @@ export const DraxList = <T extends unknown>(
 				startScroll();
 			}
 		},
-		[horizontal, stopScroll, startScroll],
+		[id, horizontal, stopScroll, startScroll],
 	);
 
 	// Monitor drag exits to stop scrolling.
@@ -223,21 +224,14 @@ export const DraxList = <T extends unknown>(
 		[stopScroll],
 	);
 
-	return (
+	return id ? (
 		<DraxView
 			id={id}
 			scrollPositionRef={scrollPositionRef}
 			onMeasure={onMeasureContainer}
-			onMonitorDragEnter={() => { console.log('onMonitorDragEnter'); }}
 			onMonitorDragOver={onMonitorDragOver}
-			onMonitorDragExit={() => {
-				console.log('onMonitorDragExit');
-				onMonitorDragEnd();
-			}}
-			onMonitorDragDrop={() => {
-				console.log('onMonitorDragDrop');
-				onMonitorDragEnd();
-			}}
+			onMonitorDragExit={onMonitorDragEnd}
+			onMonitorDragDrop={onMonitorDragEnd}
 			style={style}
 		>
 			<FlatList
@@ -252,5 +246,5 @@ export const DraxList = <T extends unknown>(
 				{...props}
 			/>
 		</DraxView>
-	);
+	) : null;
 };

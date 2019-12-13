@@ -145,12 +145,12 @@ const findMonitorsAndReceiverInRegistry = (
 	const monitors: DraxFoundAbsoluteViewEntry[] = [];
 	let receiver: DraxFoundAbsoluteViewEntry | undefined;
 
-	console.log(`find monitors and receiver for screen position (${screenPosition.x}, ${screenPosition.y})`);
+	// console.log(`find monitors and receiver for screen position (${screenPosition.x}, ${screenPosition.y})`);
 	registry.viewIds.forEach((targetId) => {
-		console.log(`checking target id ${targetId}`);
+		// console.log(`checking target id ${targetId}`);
 		if (targetId === excludeViewId) {
 			// Don't consider the excluded view.
-			console.log('excluded');
+			// console.log('excluded');
 			return;
 		}
 
@@ -158,7 +158,7 @@ const findMonitorsAndReceiverInRegistry = (
 
 		if (!target) {
 			// This should never happen, but just in case.
-			console.log('no view data found');
+			// console.log('no view data found');
 			return;
 		}
 
@@ -166,7 +166,7 @@ const findMonitorsAndReceiverInRegistry = (
 
 		if (!receptive && !monitoring) {
 			// Only consider receptive or monitoring views.
-			console.log('not receptive nor monitoring');
+			// console.log('not receptive nor monitoring');
 			return;
 		}
 
@@ -174,11 +174,11 @@ const findMonitorsAndReceiverInRegistry = (
 
 		if (!absoluteMeasurements) {
 			// Only consider views for which we have absolute measurements.
-			console.log('failed to find absolute measurements');
+			// console.log('failed to find absolute measurements');
 			return;
 		}
 
-		console.log(`absolute measurements: ${JSON.stringify(absoluteMeasurements, null, 2)}`);
+		// console.log(`absolute measurements: ${JSON.stringify(absoluteMeasurements, null, 2)}`);
 
 		if (isPointInside(screenPosition, absoluteMeasurements)) {
 			// Drag point is within this target.
@@ -194,16 +194,14 @@ const findMonitorsAndReceiverInRegistry = (
 			if (monitoring) {
 				// Add it to the list of monitors.
 				monitors.push(foundView);
-				console.log('it\'s a monitor');
+				// console.log('it\'s a monitor');
 			}
 
 			if (receptive) {
 				// It's the latest receiver found.
 				receiver = foundView;
-				console.log('it\'s a receiver');
+				// console.log('it\'s a receiver');
 			}
-		} else {
-			console.log('point is not inside');
 		}
 	});
 	return {
@@ -599,7 +597,7 @@ export const useDraxRegistry = (dispatch: DraxDispatch) => {
 	const multiDispatch = useCallback(
 		(actions: DraxAction[]) => {
 			actions.forEach((action) => {
-				console.log(`Dispatching: ${JSON.stringify(action, null, 2)}`);
+				// console.log(`Dispatching: ${JSON.stringify(action, null, 2)}`);
 				dispatch(action);
 			});
 		},
