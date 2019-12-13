@@ -7,12 +7,13 @@ import {
 import { getType } from 'typesafe-actions';
 import isEqual from 'lodash.isequal';
 
-import { actions, DraxAction } from './actions';
+import { actions } from './actions';
 import {
 	DraxState,
 	DraxViewState,
 	DraxViewDragStatus,
 	DraxViewReceiveStatus,
+	DraxStateAction,
 } from '../types';
 
 /** Create the initial empty view state data for a newly registered view. */
@@ -47,7 +48,7 @@ const selectViewState = (state: DraxState, id: string | undefined) => (
 const selectTrackingStatus = (state: DraxState) => state.trackingStatus;
 
 /** The DraxState reducer. */
-const reducer = (state: DraxState, action: DraxAction): DraxState => {
+const reducer = (state: DraxState, action: DraxStateAction): DraxState => {
 	switch (action.type) {
 		case getType(actions.createViewState): {
 			const { id } = action.payload;

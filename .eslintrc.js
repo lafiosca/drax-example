@@ -32,6 +32,7 @@ module.exports = {
 		'arrow-body-style': 0,
 		'arrow-parens': [2, 'always'],
 		'no-console': 0,
+		'no-param-reassign': [2, { props: false }],
 		'max-len': [2, {
 			code: 120,
 			tabWidth: 4,

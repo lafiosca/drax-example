@@ -1,6 +1,7 @@
-import { createAction, ActionType } from 'typesafe-actions';
+import { createAction } from 'typesafe-actions';
 
 import {
+	DraxStateActionCreators,
 	CreateViewStatePayload,
 	UpdateViewStatePayload,
 	DeleteViewStatePayload,
@@ -8,15 +9,9 @@ import {
 } from '../types';
 
 /** Collection of Drax action creators */
-export const actions = {
+export const actions: DraxStateActionCreators = {
 	createViewState: createAction('createViewState')<CreateViewStatePayload>(),
 	updateViewState: createAction('updateViewState')<UpdateViewStatePayload>(),
 	deleteViewState: createAction('deleteViewState')<DeleteViewStatePayload>(),
 	updateTrackingStatus: createAction('updateTrackingStatus')<UpdateTrackingStatusPayload>(),
 };
-
-/** A dispatchable Drax action */
-export type DraxAction = ActionType<typeof actions>;
-
-/** A dispatcher of Drax actions */
-export type DraxDispatch = (action: DraxAction) => void;

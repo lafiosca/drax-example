@@ -2,10 +2,12 @@ import {
 	useCallback,
 	useRef,
 	useMemo,
+	useEffect,
 } from 'react';
 import { Animated } from 'react-native';
+import uuid from 'uuid/v4';
 
-import { actions, DraxAction, DraxDispatch } from './actions';
+import { actions } from './actions';
 import {
 	DraxRegistry,
 	DraxViewDragStatus,
@@ -23,12 +25,15 @@ import {
 	DraxAbsoluteViewEntry,
 	DraxAbsoluteViewData,
 	DraxViewState,
+	DraxStateDispatch,
+	DraxTrackingRelease,
 } from '../types';
 import {
 	clipMeasurements,
 	isPointInside,
 	getRelativePosition,
 } from '../math';
+import { defaultDragReleaseAnimationDelay, defaultDragReleaseAnimationDuration } from '../params';
 
 /*
  * The registry functions mutate their registry parameter, so let's
@@ -38,11 +43,13 @@ import {
 /* eslint-disable no-param-reassign */
 
 /** Create an initial empty Drax registry. */
-const createInitialRegistry = (): DraxRegistry => ({
+const createInitialRegistry = (stateDispatch: DraxStateDispatch): DraxRegistry => ({
+	stateDispatch,
 	viewIds: [],
 	viewDataById: {},
 	drag: undefined,
-	released: [],
+	releaseIds: [],
+	releaseById: {},
 });
 
 /** Create the initial empty protocol data for a newly registered view. */
@@ -61,6 +68,7 @@ const getViewDataFromRegistry = (registry: DraxRegistry, id: string | undefined)
 const getAbsoluteMeasurementsForViewFromRegistry = (
 	registry: DraxRegistry,
 	{ measurements, parentId }: DraxViewData,
+	clipped: boolean = false,
 ): DraxViewMeasurements | undefined => {
 	if (!measurements) {
 		console.log('Failed to get absolute measurements for view: no measurements');
@@ -74,7 +82,7 @@ const getAbsoluteMeasurementsForViewFromRegistry = (
 		console.log(`Failed to get absolute measurements for view: no view data for parent id ${parentId}`);
 		return undefined;
 	}
-	const parentMeasurements = getAbsoluteMeasurementsForViewFromRegistry(registry, parentViewData);
+	const parentMeasurements = getAbsoluteMeasurementsForViewFromRegistry(registry, parentViewData, clipped);
 	if (!parentMeasurements) {
 		console.log(`Failed to get absolute measurements for view: no absolute measurements for parent id ${parentId}`);
 		return undefined;
@@ -96,7 +104,7 @@ const getAbsoluteMeasurementsForViewFromRegistry = (
 		x: parentX + x - offsetX,
 		y: parentY + y - offsetY,
 	};
-	return clipMeasurements(abs, parentMeasurements);
+	return clipped ? clipMeasurements(abs, parentMeasurements) : abs;
 };
 
 /** Get data, including absolute measurements, for a registered view by its id. */
@@ -169,7 +177,7 @@ const findMonitorsAndReceiverInRegistry = (
 			return;
 		}
 
-		const absoluteMeasurements = getAbsoluteMeasurementsForViewFromRegistry(registry, target);
+		const absoluteMeasurements = getAbsoluteMeasurementsForViewFromRegistry(registry, target, true);
 
 		if (!absoluteMeasurements) {
 			// Only consider views for which we have absolute measurements.
@@ -238,6 +246,25 @@ const getTrackingMonitorsFromRegistry = (registry: DraxRegistry) => (
 /** Get the array of hover items for dragged and released views */
 const getHoverItemsFromRegistry = (registry: DraxRegistry) => {
 	const hoverItems = [];
+
+	// Find all released view hover items, in order from oldest to newest.
+	registry.releaseIds.forEach((releaseId) => {
+		const release = registry.releaseById[releaseId];
+		if (release) {
+			const { viewId, hoverPosition } = release;
+			const releasedData = getAbsoluteViewDataFromRegistry(registry, viewId);
+			const renderHoverView = releasedData?.protocol.renderHoverView;
+			if (renderHoverView) {
+				hoverItems.push({
+					hoverPosition,
+					renderHoverView,
+					id: viewId,
+				});
+			}
+		}
+	});
+
+	// Find the currently dragged hover item.
 	const { id: draggedId, data: draggedData } = getTrackingDraggedFromRegistry(registry) ?? {};
 	const renderHoverView = draggedData?.protocol.renderHoverView;
 	if (draggedId && renderHoverView) {
@@ -247,6 +274,7 @@ const getHoverItemsFromRegistry = (registry: DraxRegistry) => {
 			hoverPosition: registry.drag!.hoverPosition,
 		});
 	}
+
 	return hoverItems;
 };
 
@@ -279,10 +307,12 @@ const getDragPositionDataFromRegistry = (registry: DraxRegistry, parentPosition:
 const registerViewInRegistry = (
 	registry: DraxRegistry,
 	{ id, parentId, scrollPositionRef }: RegisterViewPayload,
-): DraxAction[] => {
+) => {
+	const { viewIds, viewDataById, stateDispatch } = registry;
+
 	// Make sure not to duplicate registered view id.
-	if (registry.viewIds.indexOf(id) < 0) {
-		registry.viewIds.push(id);
+	if (viewIds.indexOf(id) < 0) {
+		viewIds.push(id);
 	}
 
 	// Maintain any existing view data.
@@ -290,14 +320,14 @@ const registerViewInRegistry = (
 
 	console.log(`Register view ${id} with parent ${parentId}`);
 
-	registry.viewDataById[id] = {
+	viewDataById[id] = {
 		parentId,
 		scrollPositionRef,
 		protocol: existingData?.protocol ?? createInitialProtocol(),
 		measurements: existingData?.measurements, // Starts undefined.
 	};
 
-	return [actions.createViewState({ id })];
+	stateDispatch(actions.createViewState({ id }));
 };
 
 /** Update a view's protocol callbacks/data. */
@@ -324,83 +354,121 @@ const updateViewMeasurementsInRegistry = (
 };
 
 /** Reset the receiver in drag tracking, if any. */
-const resetReceiverInRegistry = (registry: DraxRegistry): DraxAction[] => {
-	if (!registry.drag) {
-		return [];
+const resetReceiverInRegistry = ({ drag, stateDispatch }: DraxRegistry) => {
+	if (!drag) {
+		return;
 	}
-	const { draggedId, receiver } = registry.drag;
+	const { draggedId, receiver } = drag;
 	if (!receiver) {
 		console.log('no receiver to clear');
-		return [];
+		return;
 	}
 	console.log('clearing receiver');
-	registry.drag.receiver = undefined;
-	return [
-		actions.updateTrackingStatus({ receiving: false }),
-		actions.updateViewState({
-			id: draggedId,
-			viewStateUpdate: {
-				draggingOverReceiver: undefined,
-			},
-		}),
-		actions.updateViewState({
-			id: receiver.receiverId,
-			viewStateUpdate: {
-				receiveStatus: DraxViewReceiveStatus.Inactive,
-				receiveOffset: undefined,
-				receiveOffsetRatio: undefined,
-				receivingDrag: undefined,
-			},
-		}),
-	];
+	drag.receiver = undefined;
+	stateDispatch(actions.updateTrackingStatus({ receiving: false }));
+	stateDispatch(actions.updateViewState({
+		id: draggedId,
+		viewStateUpdate: {
+			draggingOverReceiver: undefined,
+		},
+	}));
+	stateDispatch(actions.updateViewState({
+		id: receiver.receiverId,
+		viewStateUpdate: {
+			receiveStatus: DraxViewReceiveStatus.Inactive,
+			receiveOffset: undefined,
+			receiveOffsetRatio: undefined,
+			receivingDrag: undefined,
+		},
+	}));
+};
+
+/** Track a new release, returning its unique identifier. */
+const createReleaseInRegistry = (registry: DraxRegistry, release: DraxTrackingRelease) => {
+	const releaseId = uuid();
+	registry.releaseIds.push(releaseId);
+	registry.releaseById[releaseId] = release;
+	return releaseId;
+};
+
+/** Stop tracking a release, given its unique identifier. */
+const deleteReleaseInRegistry = (registry: DraxRegistry, releaseId: string) => {
+	registry.releaseIds = registry.releaseIds.filter((id) => id !== releaseId);
+	delete registry.releaseById[releaseId];
 };
 
 /** Reset drag tracking, if any. */
-const resetDragInRegistry = (registry: DraxRegistry): DraxAction[] => {
-	if (!registry.drag) {
-		return [];
+const resetDragInRegistry = (registry: DraxRegistry) => {
+	const { drag, stateDispatch } = registry;
+
+	if (!drag) {
+		return;
 	}
-	const reactions = resetReceiverInRegistry(registry);
+
+	resetReceiverInRegistry(registry);
+
+	const {
+		draggedId,
+		screenStartPosition,
+		hoverPosition,
+	} = drag;
+
+	const draggedData = getAbsoluteViewDataFromRegistry(registry, draggedId);
+
+	// Clear the drag.
 	console.log('clearing drag');
-	const { draggedId } = registry.drag;
 	registry.drag = undefined;
-	reactions.push(actions.updateTrackingStatus({ dragging: false }));
-	reactions.push(actions.updateViewState({
+
+	// Update the dragged view state to released.
+	stateDispatch(actions.updateTrackingStatus({ dragging: false }));
+	stateDispatch(actions.updateViewState({
 		id: draggedId,
 		viewStateUpdate: {
-			dragStatus: DraxViewDragStatus.Inactive,
+			dragStatus: DraxViewDragStatus.Released,
 			dragScreenPosition: undefined,
 			dragOffset: undefined,
 			grabOffset: undefined,
 			grabOffsetRatio: undefined,
-			hoverPosition: undefined,
 		},
 	}));
-	// TODO: come back to this to fix releases
-	// const draggedData = getViewDataFromRegistry(registry, draggedId);
-	// if (draggedData) {
-	// 	const { dragOffset } = draggedData.activity;
-	// 	const {
-	// 		dragReleaseAnimationDelay = defaultDragReleaseAnimationDelay,
-	// 		dragReleaseAnimationDuration = defaultDragReleaseAnimationDuration,
-	// 	} = draggedData.protocol;
-	// 	Animated.timing(
-	// 		dragOffset,
-	// 		{
-	// 			toValue: { x: 0, y: 0 },
-	// 			delay: dragReleaseAnimationDelay,
-	// 			duration: dragReleaseAnimationDuration,
-	// 		},
-	// 	).start(({ finished }) => {
-	// 		if (finished) {
-	// 			updateViewActivityInState(state, {
-	// 				id: draggedId,
-	// 				activity: { dragState: DraxViewDragStatus.Inactive },
-	// 			});
-	// 		}
-	// 	});
-	// }
-	return reactions;
+
+	// Add a release to tracking.
+	const releaseId = createReleaseInRegistry(registry, { hoverPosition, viewId: draggedId });
+
+	// Get the required release animation parameters.
+	const toValue = draggedData
+		? {
+			x: draggedData.absoluteMeasurements.x,
+			y: draggedData.absoluteMeasurements.y,
+		}
+		: screenStartPosition;
+	const {
+		dragReleaseAnimationDelay = defaultDragReleaseAnimationDelay,
+		dragReleaseAnimationDuration = defaultDragReleaseAnimationDuration,
+	} = draggedData?.protocol || {};
+
+	// Animate the released hover snapback.
+	Animated.timing(
+		hoverPosition,
+		{
+			toValue,
+			delay: dragReleaseAnimationDelay,
+			duration: dragReleaseAnimationDuration,
+		},
+	).start(({ finished }) => {
+		// Remove the release from tracking, regardless of whether animation finished.
+		deleteReleaseInRegistry(registry, releaseId);
+		// If the animation finished, update the view state for the released view to be inactive.
+		if (finished) {
+			stateDispatch(actions.updateViewState({
+				id: draggedId,
+				viewStateUpdate: {
+					dragStatus: DraxViewDragStatus.Inactive,
+					hoverPosition: undefined,
+				},
+			}));
+		}
+	});
 };
 
 /** Start tracking a drag. */
@@ -413,8 +481,9 @@ const startDragInRegistry = (
 		grabOffset,
 		grabOffsetRatio,
 	}: StartDragPayload,
-): DraxAction[] => {
-	const reactions = resetDragInRegistry(registry);
+) => {
+	const { stateDispatch } = registry;
+	resetDragInRegistry(registry);
 	const dragScreenPosition = new Animated.ValueXY(screenStartPosition);
 	const dragOffset = new Animated.ValueXY(grabOffset);
 	const hoverPosition = new Animated.ValueXY({
@@ -432,8 +501,8 @@ const startDragInRegistry = (
 		receiver: undefined,
 		monitorIds: [],
 	};
-	reactions.push(actions.updateTrackingStatus({ dragging: true }));
-	reactions.push(actions.updateViewState({
+	stateDispatch(actions.updateTrackingStatus({ dragging: true }));
+	stateDispatch(actions.updateViewState({
 		id: draggedId,
 		viewStateUpdate: {
 			dragScreenPosition,
@@ -444,27 +513,27 @@ const startDragInRegistry = (
 			dragStatus: DraxViewDragStatus.Dragging,
 		},
 	}));
-	return reactions;
 };
 
 /** Update drag position. */
 const updateDragPositionInRegistry = (
 	registry: DraxRegistry,
 	screenPosition: Position,
-): DraxAction[] => {
-	if (!registry.drag) {
-		return [];
+) => {
+	const { drag } = registry;
+	if (!drag) {
+		return;
 	}
 	const { absoluteMeasurements } = getTrackingDraggedFromRegistry(registry)?.data ?? {};
 	if (!absoluteMeasurements) {
-		return [];
+		return;
 	}
 	const {
 		dragScreenPosition,
 		dragOffset,
 		grabOffset,
 		hoverPosition,
-	} = registry.drag;
+	} = drag;
 	dragScreenPosition.setValue(screenPosition);
 	dragOffset.setValue({
 		x: screenPosition.x - absoluteMeasurements.x,
@@ -474,7 +543,6 @@ const updateDragPositionInRegistry = (
 		x: screenPosition.x - grabOffset.x,
 		y: screenPosition.y - grabOffset.y,
 	});
-	return [];
 };
 
 /** Update receiver for a drag. */
@@ -482,9 +550,10 @@ const updateReceiverInRegistry = (
 	registry: DraxRegistry,
 	receiver: DraxFoundAbsoluteViewEntry,
 	dragged: DraxAbsoluteViewEntry,
-): DraxAction[] => {
-	if (!registry.drag) {
-		return [];
+) => {
+	const { drag, stateDispatch } = registry;
+	if (!drag) {
+		return;
 	}
 	const {
 		relativePosition,
@@ -504,8 +573,7 @@ const updateReceiverInRegistry = (
 		parentId: draggedParentId,
 		protocol: { dragPayload },
 	} = draggedData;
-	const oldReceiver = registry.drag.receiver;
-	const reactions: DraxAction[] = [];
+	const oldReceiver = drag.receiver;
 	let receiverUpdate: Partial<DraxViewState> = {
 		receivingDrag: {
 			id: draggedId,
@@ -521,12 +589,12 @@ const updateReceiverInRegistry = (
 		// New receiver.
 		if (oldReceiver) {
 			// Clear the old receiver.
-			reactions.push(...resetReceiverInRegistry(registry));
+			resetReceiverInRegistry(registry);
 		}
 		// Create new offsets.
 		const receiveOffset = new Animated.ValueXY(relativePosition);
 		const receiveOffsetRatio = new Animated.ValueXY(relativePositionRatio);
-		registry.drag.receiver = {
+		drag.receiver = {
 			receiverId,
 			receiveOffset,
 			receiveOffsetRatio,
@@ -537,13 +605,13 @@ const updateReceiverInRegistry = (
 			receiveOffsetRatio,
 			receiveStatus: DraxViewReceiveStatus.Receiving,
 		};
-		reactions.push(actions.updateTrackingStatus({ receiving: true }));
+		stateDispatch(actions.updateTrackingStatus({ receiving: true }));
 	}
-	reactions.push(actions.updateViewState({
+	stateDispatch(actions.updateViewState({
 		id: receiverId,
 		viewStateUpdate: receiverUpdate,
 	}));
-	reactions.push(actions.updateViewState({
+	stateDispatch(actions.updateViewState({
 		id: draggedId,
 		viewStateUpdate: {
 			draggingOverReceiver: {
@@ -553,49 +621,42 @@ const updateReceiverInRegistry = (
 			},
 		},
 	}));
-	return reactions;
 };
 
 /** Set the monitors for a drag. */
-const setMonitorIdsInRegistry = (registry: DraxRegistry, monitorIds: string[]): DraxAction[] => {
-	if (registry.drag) {
-		registry.drag.monitorIds = monitorIds;
+const setMonitorIdsInRegistry = ({ drag }: DraxRegistry, monitorIds: string[]) => {
+	if (drag) {
+		drag.monitorIds = monitorIds;
 	}
-	return [];
 };
 
 /** Unregister a Drax view. */
 const unregisterViewInRegistry = (
 	registry: DraxRegistry,
 	{ id }: UnregisterViewPayload,
-): DraxAction[] => {
-	const reactions: DraxAction[] = [];
+) => {
 	const { [id]: removed, ...viewDataById } = registry.viewDataById;
 	registry.viewIds = registry.viewIds.filter((thisId) => thisId !== id);
 	registry.viewDataById = viewDataById;
 	if (registry.drag?.draggedId === id) {
-		reactions.push(...resetDragInRegistry(registry));
+		resetDragInRegistry(registry);
 	} else if (registry.drag?.receiver?.receiverId === id) {
-		reactions.push(...resetReceiverInRegistry(registry));
+		resetReceiverInRegistry(registry);
 	}
-	reactions.push(actions.deleteViewState({ id }));
-	return reactions;
+	registry.stateDispatch(actions.deleteViewState({ id }));
 };
 
 /** Create a Drax registry and wire up all of the methods. */
-export const useDraxRegistry = (dispatch: DraxDispatch) => {
+export const useDraxRegistry = (stateDispatch: DraxStateDispatch) => {
 	/** Registry for tracking views and drags. */
-	const registryRef = useRef(createInitialRegistry());
+	const registryRef = useRef(createInitialRegistry(stateDispatch));
 
-	/** Dispatch multiple Drax actions at once (i.e., view state and tracking status updates). */
-	const multiDispatch = useCallback(
-		(actions: DraxAction[]) => {
-			actions.forEach((action) => {
-				// console.log(`Dispatching: ${JSON.stringify(action, null, 2)}`);
-				dispatch(action);
-			});
+	/** Ensure that the registry has the latest version of state dispatch, although it should never change. */
+	useEffect(
+		() => {
+			registryRef.current.stateDispatch = stateDispatch;
 		},
-		[dispatch],
+		[stateDispatch],
 	);
 
 	/**
@@ -692,58 +753,54 @@ export const useDraxRegistry = (dispatch: DraxDispatch) => {
 
 	/** Register a Drax view. */
 	const registerView = useCallback(
-		(payload: RegisterViewPayload) => multiDispatch(
-			registerViewInRegistry(registryRef.current, payload),
-		),
-		[multiDispatch],
+		(payload: RegisterViewPayload) => registerViewInRegistry(registryRef.current, payload),
+		[],
 	);
 
 	/** Reset the receiver in drag tracking, if any. */
 	const resetReceiver = useCallback(
-		() => multiDispatch(resetReceiverInRegistry(registryRef.current)),
-		[multiDispatch],
+		() => resetReceiverInRegistry(registryRef.current),
+		[],
 	);
 
 	/** Reset drag tracking, if any. */
 	const resetDrag = useCallback(
-		() => multiDispatch(resetDragInRegistry(registryRef.current)),
-		[multiDispatch],
+		() => resetDragInRegistry(registryRef.current),
+		[],
 	);
 
 	/** Start tracking a drag. */
 	const startDrag = useCallback(
-		(payload: StartDragPayload) => multiDispatch(startDragInRegistry(registryRef.current, payload)),
-		[multiDispatch],
+		(payload: StartDragPayload) => startDragInRegistry(registryRef.current, payload),
+		[],
 	);
 
 	/** Update drag position. */
 	const updateDragPosition = useCallback(
 		(screenPosition: Position) => (
-			multiDispatch(updateDragPositionInRegistry(registryRef.current, screenPosition))
+			updateDragPositionInRegistry(registryRef.current, screenPosition)
 		),
-		[multiDispatch],
+		[],
 	);
 
 	/** Update the receiver for a drag. */
 	const updateReceiver = useCallback(
 		(receiver: DraxFoundAbsoluteViewEntry, dragged: DraxAbsoluteViewEntry) => (
-			multiDispatch(updateReceiverInRegistry(registryRef.current, receiver, dragged))
+			updateReceiverInRegistry(registryRef.current, receiver, dragged)
 		),
-		[multiDispatch],
+		[],
 	);
 
 	/** Set the monitors for a drag. */
 	const setMonitorIds = useCallback(
-		(monitorIds: string[]) => multiDispatch(setMonitorIdsInRegistry(registryRef.current, monitorIds)),
-		[multiDispatch],
+		(monitorIds: string[]) => setMonitorIdsInRegistry(registryRef.current, monitorIds),
+		[],
 	);
 
 	/** Unregister a Drax view. */
 	const unregisterView = useCallback(
-		(payload: UnregisterViewPayload) => (
-			multiDispatch(unregisterViewInRegistry(registryRef.current, payload))
-		),
-		[multiDispatch],
+		(payload: UnregisterViewPayload) => unregisterViewInRegistry(registryRef.current, payload),
+		[],
 	);
 
 	/** Create the Drax registry object for return, only replacing reference when necessary. */

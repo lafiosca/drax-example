@@ -373,8 +373,8 @@ const App = () => {
 						style={{ flex: 1 }}
 						// data={['A', 'B', 'C', 'D']}
 						data={['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q']}
-						renderItem={({ item }) => (
-							<View style={styles.bottomBox}>
+						renderItem={({ item, index }) => (
+							<View style={[styles.bottomBox, { height: 50 + (index % 2 === 0 ? 10 : 0) + (index % 3 === 0 ? 20 : 0) }]}>
 								<Text style={styles.bottomBoxText}>{item}</Text>
 							</View>
 						)}

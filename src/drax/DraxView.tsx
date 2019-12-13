@@ -25,13 +25,9 @@ import {
 	DraxGestureEvent,
 	DraxHoverViewProps,
 	DraxViewState,
+	DraxViewMeasurements,
 } from './types';
 import { defaultLongPressDelay } from './params';
-
-const defaultStyle = {
-	width: 'auto',
-	height: 'auto',
-};
 
 export const DraxView = (
 	{
@@ -120,6 +116,9 @@ export const DraxView = (
 	// The underlying Animated.View, for measuring.
 	const viewRef = useRef<AnimatedViewRefType>(null);
 
+	// This view's measurements, for reference.
+	const measurementsRef = useRef<DraxViewMeasurements | undefined>(undefined);
+
 	// Connect with Drax.
 	const {
 		getViewState,
@@ -169,7 +168,16 @@ export const DraxView = (
 
 	const getHoverStyles = useCallback(
 		({ dragStatus, draggingOverReceiver }: DraxViewState) => {
-			const hoverStyles = [style, hoverStyle];
+			const hoverStyles = [];
+			const measurements = measurementsRef.current;
+			if (measurements) {
+				hoverStyles.push({
+					width: measurements.width,
+					height: measurements.height,
+				});
+			}
+			hoverStyles.push(style);
+			hoverStyles.push(hoverStyle);
 			if (dragStatus === DraxViewDragStatus.Dragging) {
 				hoverStyles.push(hoverDraggingStyle);
 				if (draggingOverReceiver) {
@@ -323,6 +331,7 @@ export const DraxView = (
 					height,
 				}
 			);
+			measurementsRef.current = measurements;
 			updateViewMeasurements({ id, measurements });
 			onMeasure?.(measurements);
 		},
@@ -380,7 +389,7 @@ export const DraxView = (
 
 	const styles = useMemo(
 		() => {
-			const styles = [defaultStyle, style];
+			const styles = [style];
 
 			const {
 				dragStatus = DraxViewDragStatus.Inactive,

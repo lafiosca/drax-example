@@ -13,6 +13,7 @@ import {
 	GestureHandlerGestureEventNativeEvent,
 	LongPressGestureHandlerEventExtra,
 } from 'react-native-gesture-handler';
+import { PayloadAction, PayloadActionCreator, ActionType } from 'typesafe-actions';
 
 /** Workaround for incorrect typings. See: https://github.com/kmagiera/react-native-gesture-handler/pull/860/files */
 export interface LongPressGestureHandlerGestureEvent extends GestureHandlerGestureEvent {
@@ -259,9 +260,7 @@ export interface DraxTrackingDrag {
 /** Tracking information about a view that was released and is snapping back */
 export interface DraxTrackingRelease {
 	/** View id of the released view */
-	id: string;
-	/** The position in screen coordinates of the virtual drag point */
-	dragScreenPosition: Animated.ValueXY;
+	viewId: string;
 	/** The position in screen coordinates of the released hover view */
 	hoverPosition: Animated.ValueXY;
 }
@@ -305,21 +304,6 @@ export interface DraxViewState {
 
 	/** Data about the dragged item this view is receiving, if any */
 	receivingDrag?: DraxEventViewData;
-}
-
-/** Drax provider internal registry; maintains view data and tracks drags */
-export interface DraxRegistry {
-	/** A list of the unique identifiers of the registered views, in order of registration */
-	viewIds: string[];
-	/** Data about all registered views, keyed by their unique identifiers */
-	viewDataById: {
-		/** Data about a registered view, keyed by its unique identifier */
-		[id: string]: DraxViewData;
-	};
-	/** Information about the current drag, if any */
-	drag?: DraxTrackingDrag;
-	/** Released drags that are snapping back */
-	released: DraxTrackingRelease[];
 }
 
 /** Drax provider render state; maintains render-related data */
@@ -401,6 +385,41 @@ export interface DeleteViewStatePayload {
 
 /** Payload used by Drax provider internally for updating tracking status */
 export interface UpdateTrackingStatusPayload extends Partial<DraxTrackingStatus> {}
+
+/** Collection of Drax state action creators */
+export interface DraxStateActionCreators {
+	createViewState: PayloadActionCreator<'createViewState', CreateViewStatePayload>,
+	updateViewState: PayloadActionCreator<'updateViewState', UpdateViewStatePayload>,
+	deleteViewState: PayloadActionCreator<'deleteViewState', DeleteViewStatePayload>,
+	updateTrackingStatus: PayloadActionCreator<'updateTrackingStatus', UpdateTrackingStatusPayload>,
+}
+
+/** Dispatchable Drax state action */
+export type DraxStateAction = ActionType<DraxStateActionCreators>;
+
+/** Dispatcher of Drax state actions */
+export type DraxStateDispatch = (action: DraxStateAction) => void;
+
+/** Drax provider internal registry; maintains view data and tracks drags, updating state */
+export interface DraxRegistry {
+	/** A list of the unique identifiers of the registered views, in order of registration */
+	viewIds: string[];
+	/** Data about all registered views, keyed by their unique identifiers */
+	viewDataById: {
+		/** Data about a registered view, keyed by its unique identifier */
+		[id: string]: DraxViewData;
+	};
+	/** Information about the current drag, if any */
+	drag?: DraxTrackingDrag;
+	/** A list of the unique identifiers of tracked drag releases, in order of release */
+	releaseIds: string[];
+	/** Released drags that are snapping back, keyed by unique release identifier */
+	releaseById: {
+		[releaseId: string]: DraxTrackingRelease;
+	}
+	/** Drax state dispatch function */
+	stateDispatch: DraxStateDispatch;
+}
 
 /** Context value used internally by Drax provider */
 export interface DraxContextValue {
