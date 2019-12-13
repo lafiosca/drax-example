@@ -12,6 +12,7 @@ import {
 	NativeSyntheticEvent,
 	FlatList,
 	findNodeHandle,
+	Animated,
 } from 'react-native';
 import uuid from 'uuid/v4';
 
@@ -24,6 +25,11 @@ import {
 } from './types';
 import { DraxView } from './DraxView';
 
+interface Shift {
+	targetValue: number;
+	animatedValue: Animated.Value;
+}
+
 export const DraxList = <T extends unknown>(
 	{
 		renderItem,
@@ -34,6 +40,7 @@ export const DraxList = <T extends unknown>(
 	}: PropsWithChildren<DraxListProps<T>>,
 ): ReactElement | null => {
 	const { horizontal = false } = props;
+	const itemCount = data?.length ?? 0;
 
 	// The unique identifer for this list, initialized below.
 	const [id, setId] = useState('');
@@ -59,6 +66,9 @@ export const DraxList = <T extends unknown>(
 	// Auto-scrolling interval.
 	const scrollIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
+	// Shift offsets.
+	const shiftsRef = useRef<Shift[]>([]);
+
 	// Initialize id.
 	useEffect(
 		() => {
@@ -73,17 +83,50 @@ export const DraxList = <T extends unknown>(
 		[id, idProp],
 	);
 
+	// Prepare shift values.
+	useEffect(
+		() => {
+			const shifts = shiftsRef.current;
+			if (shifts.length > itemCount) {
+				shifts.splice(itemCount - shifts.length);
+			} else {
+				while (shifts.length < itemCount) {
+					shifts.push({
+						targetValue: 0,
+						animatedValue: new Animated.Value(0),
+					});
+				}
+			}
+		},
+		[itemCount],
+	);
+
+	// Get shift transform for list item at index.
+	const getShiftTransform = useCallback(
+		(index: number) => {
+			const shift = shiftsRef.current[index].animatedValue;
+			return horizontal
+				? [{ translateX: shift }]
+				: [{ translateY: shift }];
+		},
+		[horizontal],
+	);
+
 	// Drax view renderItem wrapper.
 	const renderDraxViewItem = useCallback(
 		(info: ListRenderItemInfo<T>) => {
 			const { index } = info;
+
 			return (
 				<DraxView
+					style={{ transform: getShiftTransform(index) }}
 					payload={index}
 					onDragDrop={({ screenPosition, receiver: { parentId, payload } }) => {
 						console.log(`Dragged ${id}[${index}] onto ${parentId}[${payload}] at (${screenPosition.x}, ${screenPosition.y})`);
 					}}
 					draggingStyle={{ opacity: 0.2 }}
+					hoverStyle={{ backgroundColor: 'blue' }}
+					hoverDraggingStyle={{ backgroundColor: 'red' }}
 					receivingStyle={{ backgroundColor: 'magenta' }}
 					parent={{ id, nodeHandleRef }}
 				>
@@ -91,7 +134,7 @@ export const DraxList = <T extends unknown>(
 				</DraxView>
 			);
 		},
-		[id, renderItem],
+		[id, getShiftTransform, renderItem],
 	);
 
 	// Track the size of the container view.
@@ -191,13 +234,30 @@ export const DraxList = <T extends unknown>(
 
 	// Monitor drags to react.
 	const onMonitorDragOver = useCallback(
-		({ dragged, relativePositionRatio }: DraxMonitorEventData) => {
-			// First check if the dragged view is one of our list items.
+		({ dragged, receiver, relativePositionRatio }: DraxMonitorEventData) => {
 			if (dragged.parentId === id) {
-				// It is one of our list items.
-				const index: number = dragged.payload;
-			} else {
-				// It's an external view.
+				// One of our list items is being dragged.
+				const draggedIndex: number = dragged.payload;
+				// Find its current index in the list for the purpose of shifting.
+				const atIndex: number = receiver?.parentId === id
+					? receiver.payload
+					: draggedIndex;
+				shiftsRef.current.forEach((shift, index) => {
+					if (index > draggedIndex && index <= atIndex) {
+						if (shift.targetValue !== -50) {
+							shift.targetValue = -50;
+							Animated.timing(shift.animatedValue, { toValue: -50 }).start();
+						}
+					} else if (index < draggedIndex && index >= atIndex) {
+						if (shift.targetValue !== 50) {
+							shift.targetValue = 50;
+							Animated.timing(shift.animatedValue, { toValue: 50 }).start();
+						}
+					} else if (shift.targetValue !== 0) {
+						shift.targetValue = 0;
+						Animated.timing(shift.animatedValue, { toValue: 0 }).start();
+					}
+				});
 			}
 			const ratio = horizontal ? relativePositionRatio.x : relativePositionRatio.y;
 			if (ratio > 0.1 && ratio < 0.9) {
@@ -217,11 +277,19 @@ export const DraxList = <T extends unknown>(
 
 	// Monitor drag exits to stop scrolling.
 	const onMonitorDragEnd = useCallback(
-		() => {
+		({ dragged }: DraxMonitorEventData) => {
+			if (dragged.parentId === id) {
+				shiftsRef.current.forEach((shift) => {
+					if (shift.targetValue !== 0) {
+						shift.targetValue = 0;
+						Animated.timing(shift.animatedValue, { toValue: 0 }).start();
+					}
+				});
+			}
 			scrollStateRef.current = DraxListScrollStatus.Inactive;
 			stopScroll();
 		},
-		[stopScroll],
+		[id, stopScroll],
 	);
 
 	return id ? (

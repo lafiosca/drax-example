@@ -5,6 +5,7 @@ import React, {
 	useRef,
 	useEffect,
 	useCallback,
+	useMemo,
 } from 'react';
 import { Animated } from 'react-native';
 import {
@@ -22,6 +23,8 @@ import {
 	DraxViewDragStatus,
 	DraxViewReceiveStatus,
 	DraxGestureEvent,
+	DraxHoverViewProps,
+	DraxViewState,
 } from './types';
 import { defaultLongPressDelay } from './params';
 
@@ -58,6 +61,11 @@ export const DraxView = (
 		draggingWithReceiverStyle,
 		draggingWithoutReceiverStyle,
 		dragReleasedStyle,
+		hoverStyle,
+		hoverDraggingStyle,
+		hoverDraggingWithReceiverStyle,
+		hoverDraggingWithoutReceiverStyle,
+		hoverDragReleasedStyle,
 		receiverInactiveStyle,
 		receivingStyle,
 		otherDraggingStyle,
@@ -159,13 +167,58 @@ export const DraxView = (
 		],
 	);
 
+	const getHoverStyles = useCallback(
+		({ dragStatus, draggingOverReceiver }: DraxViewState) => {
+			const hoverStyles = [style, hoverStyle];
+			if (dragStatus === DraxViewDragStatus.Dragging) {
+				hoverStyles.push(hoverDraggingStyle);
+				if (draggingOverReceiver) {
+					hoverStyles.push(hoverDraggingWithReceiverStyle);
+				} else {
+					hoverStyles.push(hoverDraggingWithoutReceiverStyle);
+				}
+			} else if (dragStatus === DraxViewDragStatus.Released) {
+				hoverStyles.push(hoverDragReleasedStyle);
+			}
+			return hoverStyles;
+		},
+		[
+			style,
+			hoverStyle,
+			hoverDraggingStyle,
+			hoverDraggingWithReceiverStyle,
+			hoverDraggingWithoutReceiverStyle,
+			hoverDragReleasedStyle,
+		],
+	);
+
+	const renderHoverView = useCallback(
+		({ viewState }: DraxHoverViewProps) => {
+			if (!draggable) {
+				return undefined;
+			}
+
+			return (
+				<Animated.View
+					{...props}
+					style={getHoverStyles(viewState)}
+				>
+					{children}
+				</Animated.View>
+			);
+		},
+		[
+			draggable,
+			props,
+			getHoverStyles,
+			children,
+		],
+	);
+
 	// Report updates to our protocol callbacks when we have an id and whenever the props change.
 	useEffect(
 		() => {
 			if (id) {
-				const renderHoverView = draggable
-					? (() => children)
-					: undefined;
 				updateViewProtocol({
 					id,
 					protocol: {
@@ -223,6 +276,7 @@ export const DraxView = (
 			draggable,
 			receptive,
 			monitoring,
+			renderHoverView,
 		],
 	);
 
@@ -324,46 +378,68 @@ export const DraxView = (
 		[throttledHandleGestureEvent],
 	);
 
-	// Retrieve data for building styles.
-	const viewState = getViewState(id);
-	const { dragging, receiving } = getTrackingStatus();
+	const styles = useMemo(
+		() => {
+			const styles = [defaultStyle, style];
 
-	// Use `any[]` here because the view style typings don't account for animated views.
-	const styles: any[] = [
-		defaultStyle,
-		style,
-	];
+			const {
+				dragStatus = DraxViewDragStatus.Inactive,
+				receiveStatus = DraxViewReceiveStatus.Inactive,
+			} = getViewState(id) ?? {};
 
-	if (viewState) {
-		// First apply style overrides for drag state.
-		if (viewState.dragStatus === DraxViewDragStatus.Dragging) {
-			styles.push(draggingStyle);
-			if (receiving) {
-				styles.push(draggingWithReceiverStyle);
-			} else {
-				styles.push(draggingWithoutReceiverStyle);
-			}
-		} else if (viewState.dragStatus === DraxViewDragStatus.Released) {
-			styles.push(dragReleasedStyle);
-		} else {
-			styles.push(dragInactiveStyle);
-			if (dragging) {
-				styles.push(otherDraggingStyle);
-				if (receiving) {
-					styles.push(otherDraggingWithReceiverStyle);
+			const {
+				dragging: anyDragging,
+				receiving: anyReceiving,
+			} = getTrackingStatus();
+
+			// First apply style overrides for drag state.
+			if (dragStatus === DraxViewDragStatus.Dragging) {
+				styles.push(draggingStyle);
+				if (anyReceiving) {
+					styles.push(draggingWithReceiverStyle);
 				} else {
-					styles.push(otherDraggingWithoutReceiverStyle);
+					styles.push(draggingWithoutReceiverStyle);
+				}
+			} else if (dragStatus === DraxViewDragStatus.Released) {
+				styles.push(dragReleasedStyle);
+			} else {
+				styles.push(dragInactiveStyle);
+				if (anyDragging) {
+					styles.push(otherDraggingStyle);
+					if (anyReceiving) {
+						styles.push(otherDraggingWithReceiverStyle);
+					} else {
+						styles.push(otherDraggingWithoutReceiverStyle);
+					}
 				}
 			}
-		}
 
-		// Next apply style overrides for receiving state.
-		if (viewState.receiveStatus === DraxViewReceiveStatus.Receiving) {
-			styles.push(receivingStyle);
-		} else {
-			styles.push(receiverInactiveStyle);
-		}
-	}
+			// Next apply style overrides for receiving state.
+			if (receiveStatus === DraxViewReceiveStatus.Receiving) {
+				styles.push(receivingStyle);
+			} else {
+				styles.push(receiverInactiveStyle);
+			}
+
+			return styles;
+		},
+		[
+			id,
+			getViewState,
+			getTrackingStatus,
+			style,
+			dragInactiveStyle,
+			draggingStyle,
+			draggingWithReceiverStyle,
+			draggingWithoutReceiverStyle,
+			dragReleasedStyle,
+			receivingStyle,
+			receiverInactiveStyle,
+			otherDraggingStyle,
+			otherDraggingWithReceiverStyle,
+			otherDraggingWithoutReceiverStyle,
+		],
+	);
 
 	return (
 		<LongPressGestureHandler

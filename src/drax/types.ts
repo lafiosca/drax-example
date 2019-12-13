@@ -4,6 +4,8 @@ import {
 	View,
 	Animated,
 	FlatListProperties,
+	ViewStyle,
+	StyleProp,
 } from 'react-native';
 import {
 	LongPressGestureHandlerStateChangeEvent,
@@ -88,7 +90,10 @@ export interface DraxMonitorEventData extends DraxEventData {
 }
 
 /** Props provided to function for rendering hovering dragged view */
-export interface DraxHoverViewProps {}
+export interface DraxHoverViewProps {
+	/** State for the dragged view */
+	viewState: DraxViewState;
+}
 
 /** Callback protocol for communicating Drax events to views */
 export interface DraxProtocol {
@@ -433,37 +438,66 @@ export interface DraxViewParent {
 	nodeHandleRef: RefObject<number | null>;
 }
 
+type MaybeAnimated<T> = T | Animated.Value;
+type AnimatedScalar = string | number;
+type AnimatedStyle<T> = {
+	[Key in keyof T]: T[Key] extends AnimatedScalar
+		? MaybeAnimated<T[Key]>
+		: T[Key] extends Array<infer U>
+			? Array<AnimatedStyle<U>>
+			: AnimatedStyle<T[Key]>
+};
+type AnimatedViewStyle = AnimatedStyle<ViewStyle>;
+
 /** Props for a DraxView; combines protocol props and standard view props */
-export interface DraxViewProps extends DraxProtocolProps, ViewProps {
+export interface DraxViewProps extends DraxProtocolProps, Omit<ViewProps, 'style'> {
+	/** Custom style prop to allow animated values */
+	style?: StyleProp<AnimatedViewStyle>;
+
 	/** Additional view style applied while this view is not being dragged or released */
-	dragInactiveStyle?: ViewProps['style'];
+	dragInactiveStyle?: StyleProp<AnimatedViewStyle>;
 
 	/** Additional view style applied while this view is being dragged */
-	draggingStyle?: ViewProps['style'];
+	draggingStyle?: StyleProp<AnimatedViewStyle>;
 
 	/** Additional view style applied while this view is being dragged over a receiver */
-	draggingWithReceiverStyle?: ViewProps['style'];
+	draggingWithReceiverStyle?: StyleProp<AnimatedViewStyle>;
 
 	/** Additional view style applied while this view is being dragged NOT over a receiver */
-	draggingWithoutReceiverStyle?: ViewProps['style'];
+	draggingWithoutReceiverStyle?: StyleProp<AnimatedViewStyle>;
 
 	/** Additional view style applied while this view has just been released from a drag */
-	dragReleasedStyle?: ViewProps['style'];
+	dragReleasedStyle?: StyleProp<AnimatedViewStyle>;
+
+	/** Additional view style applied to the hovering copy of this view during drag/release */
+	hoverStyle?: StyleProp<AnimatedViewStyle>;
+
+	/** Additional view style applied to the hovering copy of this view while dragging */
+	hoverDraggingStyle?: StyleProp<AnimatedViewStyle>;
+
+	/** Additional view style applied to the hovering copy of this view while dragging over a receiver */
+	hoverDraggingWithReceiverStyle?: StyleProp<AnimatedViewStyle>;
+
+	/** Additional view style applied to the hovering copy of this view while dragging NOT over a receiver */
+	hoverDraggingWithoutReceiverStyle?: StyleProp<AnimatedViewStyle>;
+
+	/** Additional view style applied to the hovering copy of this view when just released */
+	hoverDragReleasedStyle?: StyleProp<AnimatedViewStyle>;
 
 	/** Additional view style applied while this view is not receiving a drag */
-	receiverInactiveStyle?: ViewProps['style'];
+	receiverInactiveStyle?: StyleProp<AnimatedViewStyle>;
 
 	/** Additional view style applied while this view is receiving a drag */
-	receivingStyle?: ViewProps['style'];
+	receivingStyle?: StyleProp<AnimatedViewStyle>;
 
 	/** Additional view style applied to this view while any other view is being dragged */
-	otherDraggingStyle?: ViewProps['style'];
+	otherDraggingStyle?: StyleProp<AnimatedViewStyle>;
 
 	/** Additional view style applied to this view while any other view is being dragged over a receiver */
-	otherDraggingWithReceiverStyle?: ViewProps['style'];
+	otherDraggingWithReceiverStyle?: StyleProp<AnimatedViewStyle>;
 
 	/** Additional view style applied to this view while any other view is being dragged NOT over a receiver */
-	otherDraggingWithoutReceiverStyle?: ViewProps['style'];
+	otherDraggingWithoutReceiverStyle?: StyleProp<AnimatedViewStyle>;
 
 	/** For external registration of this view, to access internal methods, similar to a ref */
 	registration?: (registration: DraxViewRegistration | undefined) => void;

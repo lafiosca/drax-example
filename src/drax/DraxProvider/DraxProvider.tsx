@@ -3,7 +3,7 @@ import React, {
 	useCallback,
 	ReactNodeArray,
 } from 'react';
-import { Animated, View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Animated } from 'react-native';
 import { State } from 'react-native-gesture-handler';
 
 import { useDraxState } from './useDraxState';
@@ -31,7 +31,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		getTrackingMonitors,
 		getDragPositionData,
 		findMonitorsAndReceiver,
-		getHoverViews,
+		getHoverItems,
 		registerView,
 		updateViewProtocol,
 		updateViewMeasurements,
@@ -596,6 +596,24 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		handleGestureEvent,
 	};
 
+	const hoverViews: ReactNodeArray = [];
+	getHoverItems().forEach(({ id, renderHoverView, hoverPosition }) => {
+		const viewState = getViewState(id);
+		if (viewState) {
+			const hoverView = renderHoverView({ viewState });
+			if (hoverView) {
+				hoverViews.push((
+					<Animated.View
+						key={`hover-${id}`}
+						style={{ transform: hoverPosition.getTranslateTransform() }}
+					>
+						{hoverView}
+					</Animated.View>
+				));
+			}
+		}
+	});
+
 	return (
 		<DraxContext.Provider value={value}>
 			{children}
@@ -603,7 +621,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 				style={StyleSheet.absoluteFill}
 				pointerEvents="none"
 			>
-				{getHoverViews()}
+				{hoverViews}
 			</View>
 		</DraxContext.Provider>
 	);

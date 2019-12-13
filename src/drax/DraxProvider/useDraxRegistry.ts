@@ -1,8 +1,7 @@
-import React, {
+import {
 	useCallback,
 	useRef,
 	useMemo,
-	ReactNodeArray,
 } from 'react';
 import { Animated } from 'react-native';
 
@@ -236,24 +235,19 @@ const getTrackingMonitorsFromRegistry = (registry: DraxRegistry) => (
 		|| []
 );
 
-/** Get the node array of hover views for dragged and released views */
-const getHoverViewsFromRegistry = (registry: DraxRegistry) => {
-	const hoverViews: ReactNodeArray = [];
+/** Get the array of hover items for dragged and released views */
+const getHoverItemsFromRegistry = (registry: DraxRegistry) => {
+	const hoverItems = [];
 	const { id: draggedId, data: draggedData } = getTrackingDraggedFromRegistry(registry) ?? {};
-	if (draggedData) {
-		const hoverView = draggedData.protocol.renderHoverView?.({});
-		if (hoverView) {
-			hoverViews.push((
-				<Animated.View
-					key={`hover-${draggedId}`}
-					style={{ transform: registry.drag!.hoverPosition.getTranslateTransform() }}
-				>
-					{hoverView}
-				</Animated.View>
-			));
-		}
+	const renderHoverView = draggedData?.protocol.renderHoverView;
+	if (draggedId && renderHoverView) {
+		hoverItems.push({
+			renderHoverView,
+			id: draggedId,
+			hoverPosition: registry.drag!.hoverPosition,
+		});
 	}
-	return hoverViews;
+	return hoverItems;
 };
 
 /**
@@ -666,9 +660,9 @@ export const useDraxRegistry = (dispatch: DraxDispatch) => {
 		[],
 	);
 
-	/** Get the node array of hover views for dragged and released views */
-	const getHoverViews = useCallback(
-		() => getHoverViewsFromRegistry(registryRef.current),
+	/** Get the array of hover items for dragged and released views */
+	const getHoverItems = useCallback(
+		() => getHoverItemsFromRegistry(registryRef.current),
 		[],
 	);
 
@@ -763,7 +757,7 @@ export const useDraxRegistry = (dispatch: DraxDispatch) => {
 			getTrackingMonitors,
 			getDragPositionData,
 			findMonitorsAndReceiver,
-			getHoverViews,
+			getHoverItems,
 			registerView,
 			updateViewProtocol,
 			updateViewMeasurements,
@@ -784,7 +778,7 @@ export const useDraxRegistry = (dispatch: DraxDispatch) => {
 			getTrackingMonitors,
 			getDragPositionData,
 			findMonitorsAndReceiver,
-			getHoverViews,
+			getHoverItems,
 			registerView,
 			updateViewProtocol,
 			updateViewMeasurements,
