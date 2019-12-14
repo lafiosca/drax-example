@@ -89,8 +89,8 @@ export const DraxList = <T extends unknown>(
 	// Shift offsets.
 	const shiftsRef = useRef<Shift[]>([]);
 
-	// Maintain cache of reorders until data updates.
-	const [reorderCache, setReorderCache] = useState<Reorder[]>([]);
+	// Maintain cache of reordered list indexes until data updates.
+	const [originalIndexes, setOriginalIndexes] = useState<number[]>([]);
 
 	// Initialize id.
 	useEffect(
@@ -134,32 +134,26 @@ export const DraxList = <T extends unknown>(
 	useEffect(
 		() => {
 			console.log('clear reorders');
-			setReorderCache([]);
+			setOriginalIndexes(data ? [...Array(data.length).keys()] : []);
 		},
 		[data],
 	);
 
 	// Apply the reorder cache to the data.
-	const [reorderedData, originalIndexes] = useMemo(
-		(): [T[] | null, number[]] => {
+	const reorderedData = useMemo(
+		() => {
 			console.log('refresh sorted data');
 			if (!id || data === null) {
-				return [null, []];
+				return null;
 			}
-			const originalIndexes = [...Array(data.length).keys()];
-			reorderCache.forEach(({ fromIndex, toIndex }) => {
-				originalIndexes.splice(toIndex, 0, originalIndexes.splice(fromIndex, 1)[0]);
-			});
-			const reorderedData = originalIndexes.map((index) => data[index]);
-			console.log(reorderedData.join('-'));
-			return [reorderedData, originalIndexes];
+			return originalIndexes.map((index) => data[index]);
 		},
-		[id, data, reorderCache],
+		[id, data, originalIndexes],
 	);
 
 	useEffect(
 		() => {
-			console.log('re-measure views');
+			console.log('re-measure views on data change');
 			registrationsRef.current.forEach((registration) => {
 				registration?.measure();
 			});
@@ -396,18 +390,17 @@ export const DraxList = <T extends unknown>(
 				resetShifts();
 				if (toIndex !== undefined) {
 					// If dragged item and received item were ours, reorder data.
-					console.log(`adding reorder ${fromIndex} -> ${toIndex}`);
-					setReorderCache([
-						...reorderCache,
-						{ fromIndex, toIndex },
-					]);
+					console.log(`moving ${fromIndex} -> ${toIndex}`);
+					const newOriginalIndexes = originalIndexes.slice();
+					newOriginalIndexes.splice(toIndex, 0, newOriginalIndexes.splice(fromIndex, 1)[0]);
+					setOriginalIndexes(newOriginalIndexes);
 				}
 			}
 		},
 		[
 			stopScroll,
 			resetShifts,
-			reorderCache,
+			originalIndexes,
 		],
 	);
 
@@ -460,7 +453,6 @@ export const DraxList = <T extends unknown>(
 				onScroll={onScroll}
 				onContentSizeChange={onContentSizeChange}
 				data={reorderedData}
-				extraData={reorderCache}
 				{...props}
 			/>
 		</DraxView>
