@@ -13,14 +13,17 @@ import {
 	GestureHandlerGestureEventNativeEvent,
 	LongPressGestureHandlerEventExtra,
 } from 'react-native-gesture-handler';
-import { PayloadAction, PayloadActionCreator, ActionType } from 'typesafe-actions';
+import { PayloadActionCreator, ActionType } from 'typesafe-actions';
 
 /** Workaround for incorrect typings. See: https://github.com/kmagiera/react-native-gesture-handler/pull/860/files */
 export interface LongPressGestureHandlerGestureEvent extends GestureHandlerGestureEvent {
 	nativeEvent: GestureHandlerGestureEventNativeEvent & LongPressGestureHandlerEventExtra;
 }
 
+/** Gesture state change event expected by Drax handler */
 export type DraxGestureStateChangeEvent = LongPressGestureHandlerStateChangeEvent['nativeEvent'];
+
+/** Gesture event expected by Drax handler */
 export type DraxGestureEvent = LongPressGestureHandlerGestureEvent['nativeEvent'];
 
 /** Measurements of a Drax view for bounds checking purposes */
@@ -52,6 +55,15 @@ export interface DraxEventData {
 /** Data about a Drax drag event */
 export interface DraxDragEventData extends DraxEventData {}
 
+/** Supplemental type for adding a cancelled flag */
+interface WithCancelledFlag {
+	/** True if the event was cancelled */
+	cancelled: boolean;
+}
+
+/** Data about a Drax drag end event */
+export interface DraxDragEndEventData extends DraxDragEventData, WithCancelledFlag {}
+
 /** Data about a view involved in a Drax event */
 export interface DraxEventViewData {
 	/** The view's id */
@@ -78,6 +90,9 @@ export interface DraxReceiveEventData extends DraxEventData {
 	relativePositionRatio: Position;
 }
 
+/** Data about a Drax receive end event */
+export interface DraxReceiveEndEventData extends DraxReceiveEventData, WithCancelledFlag {}
+
 /** Data about a Drax monitor event */
 export interface DraxMonitorEventData extends DraxEventData {
 	/** The dragged view for the monitor event */
@@ -89,6 +104,12 @@ export interface DraxMonitorEventData extends DraxEventData {
 	/** Event position/dimensions ratio relative to the monitor */
 	relativePositionRatio: Position;
 }
+
+/** Data about a Drax monitor drag end event */
+export interface DraxMonitorEndEventData extends DraxMonitorEventData, WithCancelledFlag {}
+
+/** Data about a Drax monitor drag-drop event */
+export interface DraxMonitorDragDropEventData extends Required<DraxMonitorEventData> {}
 
 /** Props provided to function for rendering hovering dragged view */
 export interface DraxHoverViewProps {
@@ -114,7 +135,7 @@ export interface DraxProtocol {
 	onDragExit?: (data: DraxDragWithReceiverEventData) => void;
 
 	/** Called in the dragged view when drag ends or is cancelled, not over any receiver */
-	onDragEnd?: (data: DraxDragEventData) => void;
+	onDragEnd?: (data: DraxDragEndEventData) => void;
 
 	/** Called in the dragged view when drag ends over a receiver */
 	onDragDrop?: (data: DraxDragWithReceiverEventData) => void;
@@ -138,10 +159,10 @@ export interface DraxProtocol {
 	onMonitorDragOver?: (data: DraxMonitorEventData) => void;
 
 	/** Called in the monitor view when item is dragged off of it or drag is cancelled */
-	onMonitorDragExit?: (data: DraxMonitorEventData) => void;
+	onMonitorDragExit?: (data: DraxMonitorEndEventData) => void;
 
 	/** Called in the monitor view when drag ends over it */
-	onMonitorDragDrop?: (data: DraxMonitorEventData) => void;
+	onMonitorDragDrop?: (data: DraxMonitorDragDropEventData) => void;
 
 	/** Function for rendering hovering version of view when dragged */
 	renderHoverView?: (props: DraxHoverViewProps) => ReactNode;
@@ -457,8 +478,13 @@ export interface DraxViewParent {
 	nodeHandleRef: RefObject<number | null>;
 }
 
+/** Type augmentation to allow an animated value */
 type MaybeAnimated<T> = T | Animated.Value;
+
+/** Scalar types that can be replaced by animated values */
 type AnimatedScalar = string | number;
+
+/** Type augmentation to allow a style to support animated values */
 type AnimatedStyle<T> = {
 	[Key in keyof T]: T[Key] extends AnimatedScalar
 		? MaybeAnimated<T[Key]>
@@ -466,6 +492,8 @@ type AnimatedStyle<T> = {
 			? Array<AnimatedStyle<U>>
 			: AnimatedStyle<T[Key]>
 };
+
+/** Style for an Animated.View */
 type AnimatedViewStyle = AnimatedStyle<ViewStyle>;
 
 /** Props for a DraxView; combines protocol props and standard view props */

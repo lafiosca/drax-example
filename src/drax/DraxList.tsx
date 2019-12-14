@@ -5,6 +5,7 @@ import React, {
 	useRef,
 	useEffect,
 	useCallback,
+	useMemo,
 } from 'react';
 import {
 	ListRenderItemInfo,
@@ -22,12 +23,20 @@ import {
 	DraxListScrollStatus,
 	Position,
 	DraxViewMeasurements,
+	DraxMonitorDragDropEventData,
+	DraxMonitorEndEventData,
+	DraxViewRegistration,
 } from './types';
 import { DraxView } from './DraxView';
 
 interface Shift {
 	targetValue: number;
 	animatedValue: Animated.Value;
+}
+
+interface Reorder {
+	fromIndex: number;
+	toIndex: number;
 }
 
 export const DraxList = <T extends unknown>(
@@ -69,9 +78,14 @@ export const DraxList = <T extends unknown>(
 	// List item measurements, for determining shift.
 	const measurementsRef = useRef<(DraxViewMeasurements | undefined)[]>([]);
 
+	// Drax view registrations, for remeasuring after reorder.
+	const registrationsRef = useRef<(DraxViewRegistration | undefined)[]>([]);
+
 	// Shift offsets.
 	const shiftsRef = useRef<Shift[]>([]);
 
+	// Maintain cache of reorders until data updates.
+	const [reorderCache, setReorderCache] = useState<Reorder[]>([]);
 
 	// Initialize id.
 	useEffect(
@@ -91,18 +105,16 @@ export const DraxList = <T extends unknown>(
 	useEffect(
 		() => {
 			const measurements = measurementsRef.current;
+			const registrations = registrationsRef.current;
 			const shifts = shiftsRef.current;
 			if (measurements.length > itemCount) {
 				measurements.splice(itemCount - measurements.length);
+				registrations.splice(itemCount - registrations.length);
+				shifts.splice(itemCount - shifts.length);
 			} else {
 				while (measurements.length < itemCount) {
 					measurements.push(undefined);
-				}
-			}
-			if (shifts.length > itemCount) {
-				shifts.splice(itemCount - shifts.length);
-			} else {
-				while (shifts.length < itemCount) {
+					registrations.push(undefined);
 					shifts.push({
 						targetValue: 0,
 						animatedValue: new Animated.Value(0),
@@ -111,6 +123,43 @@ export const DraxList = <T extends unknown>(
 			}
 		},
 		[itemCount],
+	);
+
+	// Clear reorders when data changes.
+	useEffect(
+		() => {
+			console.log('clear reorders');
+			setReorderCache([]);
+		},
+		[data],
+	);
+
+	// Apply the reorder cache to the data.
+	const [reorderedData, originalIndexes] = useMemo(
+		(): [T[] | null, number[]] => {
+			console.log('refresh sorted data');
+			if (!id || data === null) {
+				return [null, []];
+			}
+			const originalIndexes = [...Array(data.length).keys()];
+			reorderCache.forEach(({ fromIndex, toIndex }) => {
+				originalIndexes.splice(toIndex, 0, originalIndexes.splice(fromIndex, 1)[0]);
+			});
+			const reorderedData = originalIndexes.map((index) => data[index]);
+			console.log(reorderedData.join('-'));
+			return [reorderedData, originalIndexes];
+		},
+		[id, data, reorderCache],
+	);
+
+	useEffect(
+		() => {
+			console.log('re-measure views');
+			registrationsRef.current.forEach((registration) => {
+				registration?.measure();
+			});
+		},
+		[reorderedData],
 	);
 
 	// Get shift transform for list item at index.
@@ -128,16 +177,21 @@ export const DraxList = <T extends unknown>(
 	const renderDraxViewItem = useCallback(
 		(info: ListRenderItemInfo<T>) => {
 			const { index } = info;
+			const originalIndex = originalIndexes[index];
 
 			return (
 				<DraxView
-					style={{ transform: getShiftTransform(index) }}
+					style={{ transform: getShiftTransform(originalIndex) }}
+					id={`${id}[${originalIndex}]`}
 					payload={index}
 					onMeasure={(measurements) => {
-						measurementsRef.current[index] = measurements;
+						measurementsRef.current[originalIndex] = measurements;
 					}}
-					onDragDrop={({ screenPosition, receiver: { parentId, payload } }) => {
-						console.log(`Dragged ${id}[${index}] onto ${parentId}[${payload}] at (${screenPosition.x}, ${screenPosition.y})`);
+					registration={(registration) => {
+						registrationsRef.current[originalIndex] = registration;
+					}}
+					onDragDrop={({ screenPosition, receiver: { id: receiverId, payload } }) => {
+						console.log(`Dragged ${id}[${index}] onto ${receiverId} (position ${payload}) at (${screenPosition.x}, ${screenPosition.y})`);
 					}}
 					draggingStyle={{ opacity: 0.2 }}
 					dragReleasedStyle={{ opacity: 0.2 }}
@@ -150,7 +204,12 @@ export const DraxList = <T extends unknown>(
 				</DraxView>
 			);
 		},
-		[id, getShiftTransform, renderItem],
+		[
+			id,
+			originalIndexes,
+			getShiftTransform,
+			renderItem,
+		],
 	);
 
 	// Track the size of the container view.
@@ -253,10 +312,7 @@ export const DraxList = <T extends unknown>(
 	const resetShifts = useCallback(
 		() => {
 			shiftsRef.current.forEach((shift) => {
-				if (shift.targetValue !== 0) {
-					shift.targetValue = 0;
-					Animated.timing(shift.animatedValue, { toValue: 0 }).start();
-				}
+				shift.animatedValue.setValue(0);
 			});
 		},
 		[],
@@ -265,9 +321,11 @@ export const DraxList = <T extends unknown>(
 	// Update shift values in response to a drag.
 	const updateShifts = useCallback(
 		(draggedIndex: number, atIndex: number) => {
-			const { width = 50, height = 50 } = measurementsRef.current[draggedIndex] ?? {};
+			const draggedOriginalIndex = originalIndexes[draggedIndex];
+			const { width = 50, height = 50 } = measurementsRef.current[draggedOriginalIndex] ?? {};
 			const offset = horizontal ? width : height;
-			shiftsRef.current.forEach((shift, index) => {
+			originalIndexes.forEach((originalIndex, index) => {
+				const shift = shiftsRef.current[originalIndex];
 				let newTargetValue = 0;
 				if (index > draggedIndex && index <= atIndex) {
 					newTargetValue = -offset;
@@ -283,12 +341,13 @@ export const DraxList = <T extends unknown>(
 				}
 			});
 		},
-		[horizontal],
+		[originalIndexes, horizontal],
 	);
 
 	// Monitor drags to react.
 	const onMonitorDragOver = useCallback(
 		({ dragged, receiver, relativePositionRatio }: DraxMonitorEventData) => {
+			// First, check if we need to shift items.
 			if (dragged.parentId === id) {
 				// One of our list items is being dragged.
 				const draggedIndex: number = dragged.payload;
@@ -296,17 +355,10 @@ export const DraxList = <T extends unknown>(
 				const atIndex: number = receiver?.parentId === id
 					? receiver.payload
 					: draggedIndex;
-				updateShifts(
-					draggedIndex,
-					atIndex,
-					{
-						x: 0,
-						y: 0,
-						width: 50,
-						height: 50,
-					},
-				);
+				updateShifts(draggedIndex, atIndex);
 			}
+
+			// Next, see if we need to auto-scroll.
 			const ratio = horizontal ? relativePositionRatio.x : relativePositionRatio.y;
 			if (ratio > 0.1 && ratio < 0.9) {
 				scrollStateRef.current = DraxListScrollStatus.Inactive;
@@ -329,16 +381,54 @@ export const DraxList = <T extends unknown>(
 		],
 	);
 
-	// Monitor drag exits to stop scrolling.
-	const onMonitorDragEnd = useCallback(
-		({ dragged }: DraxMonitorEventData) => {
-			if (dragged.parentId === id) {
-				resetShifts();
-			}
+	// Stop scrolling, and potentially update shifts and reorder data.
+	const handleDragEnd = useCallback(
+		(fromIndex?: number, toIndex?: number) => {
+			// Always stop auto-scroll on drag end.
 			scrollStateRef.current = DraxListScrollStatus.Inactive;
 			stopScroll();
+			if (fromIndex !== undefined) {
+				// If dragged item was ours, reset shifts.
+				resetShifts();
+				if (toIndex !== undefined) {
+					// If dragged item and received item were ours, reorder data.
+					console.log(`adding reorder ${fromIndex} -> ${toIndex}`);
+					setReorderCache([
+						...reorderCache,
+						{ fromIndex, toIndex },
+					]);
+				}
+			}
 		},
-		[id, resetShifts, stopScroll],
+		[
+			stopScroll,
+			resetShifts,
+			reorderCache,
+		],
+	);
+
+	// Monitor drag exits to stop scrolling, update shifts, and possibly reorder.
+	const onMonitorDragExit = useCallback(
+		({ dragged, receiver, cancelled }: DraxMonitorEndEventData) => {
+			const fromIndex = dragged.parentId === id ? dragged.payload : undefined;
+			// This is for Android, which will cancel our list drags if we scroll too far.
+			const toIndex = (fromIndex !== undefined && cancelled && receiver && receiver.parentId === id)
+				? receiver.payload
+				: undefined;
+			handleDragEnd(fromIndex, toIndex);
+		},
+		[id, handleDragEnd],
+	);
+
+	// Monitor drag drops to stop scrolling, update shifts, and possibly reorder.
+	const onMonitorDragDrop = useCallback(
+		(event: DraxMonitorDragDropEventData) => {
+			const { dragged, receiver } = event;
+			const fromIndex = dragged.parentId === id ? dragged.payload : undefined;
+			const toIndex = (fromIndex !== undefined && receiver.parentId === id) ? receiver.payload : undefined;
+			handleDragEnd(fromIndex, toIndex);
+		},
+		[id, handleDragEnd],
 	);
 
 	return id ? (
@@ -347,8 +437,8 @@ export const DraxList = <T extends unknown>(
 			scrollPositionRef={scrollPositionRef}
 			onMeasure={onMeasureContainer}
 			onMonitorDragOver={onMonitorDragOver}
-			onMonitorDragExit={onMonitorDragEnd}
-			onMonitorDragDrop={onMonitorDragEnd}
+			onMonitorDragExit={onMonitorDragExit}
+			onMonitorDragDrop={onMonitorDragDrop}
 			style={style}
 		>
 			<FlatList
@@ -359,7 +449,8 @@ export const DraxList = <T extends unknown>(
 				renderItem={renderDraxViewItem}
 				onScroll={onScroll}
 				onContentSizeChange={onContentSizeChange}
-				data={id ? data : []}
+				data={reorderedData}
+				extraData={reorderCache}
 				{...props}
 			/>
 		</DraxView>

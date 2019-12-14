@@ -118,6 +118,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 				// Case 3: This is the view we're already dragging.
 
 				let endDrag = false;
+				let cancelled = false;
 				let shouldDrop = false;
 
 				switch (gestureState) {
@@ -139,6 +140,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 							console.log(`Stop dragging view id ${id} (CANCELLED)`);
 						}
 						endDrag = true;
+						cancelled = true;
 						break;
 					case State.FAILED:
 						// This should never happen, but let's end the drag without dropping.
@@ -235,7 +237,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 					// There is no receiver, or the drag was cancelled.
 
 					// Let the dragged item know the drag ended.
-					draggedData.protocol.onDragEnd?.({ screenPosition });
+					draggedData.protocol.onDragEnd?.({ screenPosition, cancelled });
 
 					// If there is a receiver, let it know the drag exited it.
 					if (receiverData) {
@@ -264,6 +266,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 							monitorData.protocol.onMonitorDragExit?.({
 								...monitorEventData,
 								...getRelativePosition(screenPosition, monitorData.absoluteMeasurements),
+								cancelled,
 							});
 						});
 					}
@@ -467,6 +470,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 							monitorData.protocol.onMonitorDragExit?.({
 								...baseMonitorEventData,
 								...getRelativePosition(screenPosition, monitorData.absoluteMeasurements),
+								cancelled: false,
 							});
 						}
 					});
