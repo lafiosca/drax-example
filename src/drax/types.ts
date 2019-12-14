@@ -117,6 +117,13 @@ export interface DraxHoverViewProps {
 	viewState: DraxViewState;
 }
 
+/**
+ * Response type for Drax protocol callbacks involving end of a drag,
+ * allowing modification of default release behavior. If true, suppress
+ * the release snapback. If a Position, snapback to those screen coordinates.
+ */
+export type DraxProtocolDragEndResponse = void | boolean | Position;
+
 /** Callback protocol for communicating Drax events to views */
 export interface DraxProtocol {
 	/** Called in the dragged view when a drag action begins */
@@ -135,10 +142,10 @@ export interface DraxProtocol {
 	onDragExit?: (data: DraxDragWithReceiverEventData) => void;
 
 	/** Called in the dragged view when drag ends or is cancelled, not over any receiver */
-	onDragEnd?: (data: DraxDragEndEventData) => void;
+	onDragEnd?: (data: DraxDragEndEventData) => DraxProtocolDragEndResponse;
 
 	/** Called in the dragged view when drag ends over a receiver */
-	onDragDrop?: (data: DraxDragWithReceiverEventData) => void;
+	onDragDrop?: (data: DraxDragWithReceiverEventData) => DraxProtocolDragEndResponse;
 
 	/** Called in the receiver view when an item is dragged onto it */
 	onReceiveDragEnter?: (data: DraxReceiveEventData) => void;
@@ -147,10 +154,10 @@ export interface DraxProtocol {
 	onReceiveDragOver?: (data: DraxReceiveEventData) => void;
 
 	/** Called in the receiver view when item is dragged off of it or drag is cancelled */
-	onReceiveDragExit?: (data: DraxReceiveEventData) => void;
+	onReceiveDragExit?: (data: DraxReceiveEndEventData) => void;
 
 	/** Called in the receiver view when drag ends over it */
-	onReceiveDragDrop?: (data: DraxReceiveEventData) => void;
+	onReceiveDragDrop?: (data: DraxReceiveEventData) => DraxProtocolDragEndResponse;
 
 	/** Called in the monitor view when an item is dragged onto it */
 	onMonitorDragEnter?: (data: DraxMonitorEventData) => void;

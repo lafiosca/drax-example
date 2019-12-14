@@ -371,8 +371,8 @@ const App = () => {
 					/> */}
 					<DraxList
 						style={{ flex: 1 }}
-						data={['A', 'B', 'C', 'D']}
-						// data={['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q']}
+						// data={['A', 'B', 'C', 'D']}
+						data={['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R']}
 						renderItem={({ item }) => (
 							<View style={[styles.bottomBox, { height: 50 + ((item.charCodeAt(0) - 65) % 2 === 0 ? 10 : 0) + ((item.charCodeAt(0) - 65) % 3 === 0 ? 20 : 0) }]}>
 								<Text style={styles.bottomBoxText}>{item}</Text>

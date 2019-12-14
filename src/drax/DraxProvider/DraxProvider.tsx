@@ -239,7 +239,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 					// Let the dragged item know the drag ended.
 					draggedData.protocol.onDragEnd?.({ screenPosition, cancelled });
 
-					// If there is a receiver, let it know the drag exited it.
+					// If there is a receiver but drag was cancelled, let it know the drag exited it.
 					if (receiverData) {
 						receiverData.protocol.onReceiveDragExit?.({
 							screenPosition,
@@ -249,6 +249,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 								parentId: draggedData.parentId,
 								payload: draggedData.protocol.dragPayload,
 							},
+							cancelled,
 						});
 					}
 
@@ -260,6 +261,11 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 								id,
 								parentId: draggedData.parentId,
 								payload: draggedData.protocol.dragPayload,
+							},
+							receiver: receiverData && {
+								id: receiverId!,
+								parentId: receiverData.parentId,
+								payload: receiverData.protocol.receiverPayload,
 							},
 						};
 						monitors.forEach(({ data: monitorData }) => {
@@ -530,6 +536,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 								screenPosition,
 								...getRelativePosition(screenPosition, oldReceiverData.absoluteMeasurements),
 								dragged: eventDataDragged,
+								cancelled: false,
 							});
 						}
 
@@ -564,6 +571,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 						screenPosition,
 						...getRelativePosition(screenPosition, oldReceiverData.absoluteMeasurements),
 						dragged: eventDataDragged,
+						cancelled: false,
 					});
 				}
 			} else {

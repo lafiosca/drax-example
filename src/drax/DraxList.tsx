@@ -39,6 +39,11 @@ interface Reorder {
 	toIndex: number;
 }
 
+interface ListItemPayload {
+	index: number;
+	originalIndex: number;
+}
+
 export const DraxList = <T extends unknown>(
 	{
 		renderItem,
@@ -183,15 +188,12 @@ export const DraxList = <T extends unknown>(
 				<DraxView
 					style={{ transform: getShiftTransform(originalIndex) }}
 					id={`${id}[${originalIndex}]`}
-					payload={index}
+					payload={{ index, originalIndex }}
 					onMeasure={(measurements) => {
 						measurementsRef.current[originalIndex] = measurements;
 					}}
 					registration={(registration) => {
 						registrationsRef.current[originalIndex] = registration;
-					}}
-					onDragDrop={({ screenPosition, receiver: { id: receiverId, payload } }) => {
-						console.log(`Dragged ${id}[${index}] onto ${receiverId} (position ${payload}) at (${screenPosition.x}, ${screenPosition.y})`);
 					}}
 					draggingStyle={{ opacity: 0.2 }}
 					dragReleasedStyle={{ opacity: 0.2 }}
@@ -320,16 +322,18 @@ export const DraxList = <T extends unknown>(
 
 	// Update shift values in response to a drag.
 	const updateShifts = useCallback(
-		(draggedIndex: number, atIndex: number) => {
-			const draggedOriginalIndex = originalIndexes[draggedIndex];
-			const { width = 50, height = 50 } = measurementsRef.current[draggedOriginalIndex] ?? {};
+		(
+			{ index: fromIndex, originalIndex: fromOriginalIndex }: ListItemPayload,
+			{ index: toIndex }: ListItemPayload,
+		) => {
+			const { width = 50, height = 50 } = measurementsRef.current[fromOriginalIndex] ?? {};
 			const offset = horizontal ? width : height;
 			originalIndexes.forEach((originalIndex, index) => {
 				const shift = shiftsRef.current[originalIndex];
 				let newTargetValue = 0;
-				if (index > draggedIndex && index <= atIndex) {
+				if (index > fromIndex && index <= toIndex) {
 					newTargetValue = -offset;
-				} else if (index < draggedIndex && index >= atIndex) {
+				} else if (index < fromIndex && index >= toIndex) {
 					newTargetValue = offset;
 				}
 				if (shift.targetValue !== newTargetValue) {
@@ -350,12 +354,12 @@ export const DraxList = <T extends unknown>(
 			// First, check if we need to shift items.
 			if (dragged.parentId === id) {
 				// One of our list items is being dragged.
-				const draggedIndex: number = dragged.payload;
+				const fromPayload: ListItemPayload = dragged.payload;
 				// Find its current index in the list for the purpose of shifting.
-				const atIndex: number = receiver?.parentId === id
+				const toPayload: ListItemPayload = receiver?.parentId === id
 					? receiver.payload
-					: draggedIndex;
-				updateShifts(draggedIndex, atIndex);
+					: fromPayload;
+				updateShifts(fromPayload, toPayload);
 			}
 
 			// Next, see if we need to auto-scroll.
@@ -410,10 +414,12 @@ export const DraxList = <T extends unknown>(
 	// Monitor drag exits to stop scrolling, update shifts, and possibly reorder.
 	const onMonitorDragExit = useCallback(
 		({ dragged, receiver, cancelled }: DraxMonitorEndEventData) => {
-			const fromIndex = dragged.parentId === id ? dragged.payload : undefined;
+			const fromIndex = (dragged.parentId === id)
+				? (dragged.payload as ListItemPayload).index
+				: undefined;
 			// This is for Android, which will cancel our list drags if we scroll too far.
 			const toIndex = (fromIndex !== undefined && cancelled && receiver && receiver.parentId === id)
-				? receiver.payload
+				? (receiver.payload as ListItemPayload).index
 				: undefined;
 			handleDragEnd(fromIndex, toIndex);
 		},
@@ -424,8 +430,12 @@ export const DraxList = <T extends unknown>(
 	const onMonitorDragDrop = useCallback(
 		(event: DraxMonitorDragDropEventData) => {
 			const { dragged, receiver } = event;
-			const fromIndex = dragged.parentId === id ? dragged.payload : undefined;
-			const toIndex = (fromIndex !== undefined && receiver.parentId === id) ? receiver.payload : undefined;
+			const fromIndex = (dragged.parentId === id)
+				? (dragged.payload as ListItemPayload).index
+				: undefined;
+			const toIndex = (fromIndex !== undefined && receiver.parentId === id)
+				? (receiver.payload as ListItemPayload).index
+				: undefined;
 			handleDragEnd(fromIndex, toIndex);
 		},
 		[id, handleDragEnd],
