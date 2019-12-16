@@ -794,7 +794,7 @@ export const useDraxRegistry = (stateDispatch: DraxStateDispatch) => {
 
 	/** Reset drag tracking, if any. */
 	const resetDrag = useCallback(
-		() => resetDragInRegistry(registryRef.current),
+		(snapbackTarget?: DraxSnapbackTarget) => resetDragInRegistry(registryRef.current, snapbackTarget),
 		[],
 	);
 

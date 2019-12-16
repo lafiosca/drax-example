@@ -145,7 +145,7 @@ export interface DraxProtocol {
 	/** Called in the dragged view repeatedly while dragged, not over any receiver */
 	onDrag?: (data: DraxDragEventData) => void;
 
-	/** Called in the dragged view when dragged onto a new receiver */
+	/** Called in the dragged view when initially dragged over a new receiver */
 	onDragEnter?: (data: DraxDragWithReceiverEventData) => void;
 
 	/** Called in the dragged view repeatedly while dragged over a receiver */
@@ -154,13 +154,13 @@ export interface DraxProtocol {
 	/** Called in the dragged view when dragged off of a receiver */
 	onDragExit?: (data: DraxDragWithReceiverEventData) => void;
 
-	/** Called in the dragged view when drag ends or is cancelled, not over any receiver */
+	/** Called in the dragged view when drag ends not over any receiver or is cancelled */
 	onDragEnd?: (data: DraxDragEndEventData) => DraxProtocolDragEndResponse;
 
 	/** Called in the dragged view when drag ends over a receiver */
 	onDragDrop?: (data: DraxDragWithReceiverEventData) => DraxProtocolDragEndResponse;
 
-	/** Called in the receiver view when an item is dragged onto it */
+	/** Called in the receiver view each time an item is initially dragged over it */
 	onReceiveDragEnter?: (data: DraxReceiveEventData) => void;
 
 	/** Called in the receiver view repeatedly while an item is dragged over it */
@@ -172,17 +172,20 @@ export interface DraxProtocol {
 	/** Called in the receiver view when drag ends over it */
 	onReceiveDragDrop?: (data: DraxReceiveEventData) => DraxProtocolDragEndResponse;
 
-	/** Called in the monitor view when an item is dragged onto it */
+	/** Called in the monitor view each time an item is initially dragged over it */
 	onMonitorDragEnter?: (data: DraxMonitorEventData) => void;
 
 	/** Called in the monitor view repeatedly while an item is dragged over it */
 	onMonitorDragOver?: (data: DraxMonitorEventData) => void;
 
-	/** Called in the monitor view when item is dragged off of it or drag is cancelled */
-	onMonitorDragExit?: (data: DraxMonitorEndEventData) => void;
+	/** Called in the monitor view when item is dragged off of it */
+	onMonitorDragExit?: (data: DraxMonitorEventData) => void;
 
-	/** Called in the monitor view when drag ends over it */
-	onMonitorDragDrop?: (data: DraxMonitorDragDropEventData) => void;
+	/** Called in the monitor view when drag ends over it while not over any receiver or drag is cancelled */
+	onMonitorDragEnd?: (data: DraxMonitorEndEventData) => DraxProtocolDragEndResponse;
+
+	/** Called in the monitor view when drag ends over it while over a receiver */
+	onMonitorDragDrop?: (data: DraxMonitorDragDropEventData) => DraxProtocolDragEndResponse;
 
 	/** Function for rendering hovering version of view when dragged */
 	renderHoverView?: (props: DraxHoverViewProps) => ReactNode;

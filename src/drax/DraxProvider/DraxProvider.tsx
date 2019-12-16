@@ -14,6 +14,8 @@ import {
 	DraxContextValue,
 	DraxGestureStateChangeEvent,
 	DraxGestureEvent,
+	DraxSnapbackTarget,
+	DraxSnapbackTargetPreset,
 } from '../types';
 import { getRelativePosition } from '../math';
 
@@ -187,12 +189,13 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 				// Get the monitors (if any) before we reset.
 				const monitors = getTrackingMonitors();
 
-				// Reset the drag.
-				resetDrag();
+				// Snapback target, which may be modified by responses from protocols.
+				let snapbackTarget: DraxSnapbackTarget = DraxSnapbackTargetPreset.Default;
 
 				if (receiverData && shouldDrop) {
-					// It's a successful drop into a receiver, let them both know.
-					draggedData.protocol.onDragDrop?.({
+					// It's a successful drop into a receiver, let them both know, and check for response.
+					let responded = false;
+					let response = draggedData.protocol.onDragDrop?.({
 						screenPosition,
 						receiver: {
 							id: receiverId!,
@@ -200,7 +203,12 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 							payload: receiverData.protocol.receiverPayload,
 						},
 					});
-					receiverData.protocol.onReceiveDragDrop?.({
+					if (response !== undefined) {
+						snapbackTarget = response;
+						responded = true;
+					}
+
+					response = receiverData.protocol.onReceiveDragDrop?.({
 						screenPosition,
 						...getRelativePosition(screenPosition, receiverData.absoluteMeasurements),
 						dragged: {
@@ -209,6 +217,10 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 							payload: draggedData.protocol.dragPayload,
 						},
 					});
+					if (!responded && response !== undefined) {
+						snapbackTarget = response;
+						responded = true;
+					}
 
 					// And let any active monitors know too.
 					if (monitors.length > 0) {
@@ -227,18 +239,27 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 						};
 						monitors.forEach(({ data: monitorData }) => {
 							if (monitorData) {
-								monitorData.protocol.onMonitorDragDrop?.({
+								response = monitorData.protocol.onMonitorDragDrop?.({
 									...monitorEventData,
 									...getRelativePosition(screenPosition, monitorData.absoluteMeasurements),
 								});
+							}
+							if (!responded && response !== undefined) {
+								snapbackTarget = response;
+								responded = true;
 							}
 						});
 					}
 				} else {
 					// There is no receiver, or the drag was cancelled.
 
-					// Let the dragged item know the drag ended.
-					const response = draggedData.protocol.onDragEnd?.({ screenPosition, cancelled });
+					// Let the dragged item know the drag ended, and capture any response.
+					let responded = false;
+					let response = draggedData.protocol.onDragEnd?.({ screenPosition, cancelled });
+					if (response !== undefined) {
+						snapbackTarget = response;
+						responded = true;
+					}
 
 					// If there is a receiver but drag was cancelled, let it know the drag exited it.
 					if (receiverData) {
@@ -270,14 +291,23 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 							},
 						};
 						monitors.forEach(({ data: monitorData }) => {
-							monitorData.protocol.onMonitorDragExit?.({
-								...monitorEventData,
-								...getRelativePosition(screenPosition, monitorData.absoluteMeasurements),
-								cancelled,
-							});
+							if (cancelled) {
+								response = monitorData.protocol.onMonitorDragEnd?.({
+									...monitorEventData,
+									...getRelativePosition(screenPosition, monitorData.absoluteMeasurements),
+									cancelled,
+								});
+							}
+							if (!responded && response !== undefined) {
+								snapbackTarget = response;
+								responded = true;
+							}
 						});
 					}
 				}
+
+				// Reset the drag.
+				resetDrag(snapbackTarget);
 
 				return;
 			}
@@ -477,7 +507,6 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 							monitorData.protocol.onMonitorDragExit?.({
 								...baseMonitorEventData,
 								...getRelativePosition(screenPosition, monitorData.absoluteMeasurements),
-								cancelled: false,
 							});
 						}
 					});

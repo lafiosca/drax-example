@@ -26,6 +26,9 @@ import {
 	DraxMonitorDragDropEventData,
 	DraxMonitorEndEventData,
 	DraxViewRegistration,
+	DraxEventViewData,
+	DraxProtocolDragEndResponse,
+	DraxSnapbackTargetPreset,
 } from './types';
 import { DraxView } from './DraxView';
 
@@ -189,12 +192,10 @@ export const DraxList = <T extends unknown>(
 					registration={(registration) => {
 						registrationsRef.current[originalIndex] = registration;
 					}}
-					draggingStyle={{ opacity: 0.2 }}
-					dragReleasedStyle={{ opacity: 0.2 }}
+					draggingStyle={{ opacity: 0 }}
+					dragReleasedStyle={{ opacity: 0.5 }}
 					hoverStyle={{ backgroundColor: 'blue' }}
 					hoverDraggingStyle={{ backgroundColor: 'red' }}
-					receivingStyle={{ backgroundColor: 'magenta' }}
-					animateSnapback={false}
 					parent={{ id, nodeHandleRef }}
 				>
 					{renderItem(info)}
@@ -343,7 +344,69 @@ export const DraxList = <T extends unknown>(
 		[originalIndexes, horizontal],
 	);
 
-	// Monitor drags to react.
+	// Calculate screen position of list item for snapback.
+	const calculateSnapbackTarget = useCallback(
+		(index: number) => {
+			const containerMeasurements = containerMeasurementsRef.current;
+			if (containerMeasurements) {
+				const measurements = measurementsRef.current[index];
+				if (measurements) {
+					const scrollPosition = scrollPositionRef.current;
+					return {
+						x: containerMeasurements.x - scrollPosition.x + measurements.x,
+						y: containerMeasurements.y - scrollPosition.y + measurements.y,
+					};
+				}
+			}
+			return DraxSnapbackTargetPreset.None;
+		},
+		[],
+	);
+
+	// Stop scrolling, and potentially update shifts and reorder data.
+	const handleDragEnd = useCallback(
+		(
+			dragged?: DraxEventViewData,
+			receiver?: DraxEventViewData,
+		): DraxProtocolDragEndResponse => {
+			// Always stop auto-scroll on drag end.
+			scrollStateRef.current = DraxListScrollStatus.Inactive;
+			stopScroll();
+
+			// Determine list indexes of dragged/received items, if any.
+			const fromIndex = dragged && (dragged.parentId === id)
+				? (dragged.payload as ListItemPayload).index
+				: undefined;
+			const toIndex = (fromIndex !== undefined && receiver && receiver.parentId === id)
+				? (receiver.payload as ListItemPayload).index
+				: undefined;
+
+			if (fromIndex !== undefined) {
+				// If dragged item was ours, reset shifts.
+				resetShifts();
+				if (toIndex !== undefined) {
+					// If dragged item and received item were ours, reorder data.
+					console.log(`moving ${fromIndex} -> ${toIndex}`);
+					const snapbackTarget = calculateSnapbackTarget(originalIndexes[toIndex]);
+					const newOriginalIndexes = originalIndexes.slice();
+					newOriginalIndexes.splice(toIndex, 0, newOriginalIndexes.splice(fromIndex, 1)[0]);
+					setOriginalIndexes(newOriginalIndexes);
+					return snapbackTarget;
+				}
+			}
+
+			return undefined;
+		},
+		[
+			id,
+			stopScroll,
+			resetShifts,
+			calculateSnapbackTarget,
+			originalIndexes,
+		],
+	);
+
+	// Monitor drags to react with item shifts and auto-scrolling.
 	const onMonitorDragOver = useCallback(
 		({ dragged, receiver, relativePositionRatio }: DraxMonitorEventData) => {
 			// First, check if we need to shift items.
@@ -380,59 +443,26 @@ export const DraxList = <T extends unknown>(
 		],
 	);
 
-	// Stop scrolling, and potentially update shifts and reorder data.
-	const handleDragEnd = useCallback(
-		(fromIndex?: number, toIndex?: number) => {
-			// Always stop auto-scroll on drag end.
-			scrollStateRef.current = DraxListScrollStatus.Inactive;
-			stopScroll();
-			if (fromIndex !== undefined) {
-				// If dragged item was ours, reset shifts.
-				resetShifts();
-				if (toIndex !== undefined) {
-					// If dragged item and received item were ours, reorder data.
-					console.log(`moving ${fromIndex} -> ${toIndex}`);
-					const newOriginalIndexes = originalIndexes.slice();
-					newOriginalIndexes.splice(toIndex, 0, newOriginalIndexes.splice(fromIndex, 1)[0]);
-					setOriginalIndexes(newOriginalIndexes);
-				}
-			}
-		},
-		[
-			stopScroll,
-			resetShifts,
-			originalIndexes,
-		],
-	);
-
 	// Monitor drag exits to stop scrolling, update shifts, and possibly reorder.
 	const onMonitorDragExit = useCallback(
-		({ dragged, receiver, cancelled }: DraxMonitorEndEventData) => {
-			const fromIndex = (dragged.parentId === id)
-				? (dragged.payload as ListItemPayload).index
-				: undefined;
-			// This is for Android, which will cancel our list drags if we scroll too far.
-			const toIndex = (fromIndex !== undefined && cancelled && receiver && receiver.parentId === id)
-				? (receiver.payload as ListItemPayload).index
-				: undefined;
-			handleDragEnd(fromIndex, toIndex);
-		},
-		[id, handleDragEnd],
+		({ dragged }: DraxMonitorEventData) => handleDragEnd(dragged),
+		[handleDragEnd],
+	);
+
+	/*
+	 * Monitor drag ends to stop scrolling, update shifts, and possibly reorder.
+	 * This addresses the Android case where if we drag a list item and auto-scroll
+	 * too far, the drag gets cancelled.
+	 */
+	const onMonitorDragEnd = useCallback(
+		({ dragged, receiver }: DraxMonitorEndEventData) => handleDragEnd(dragged, receiver),
+		[handleDragEnd],
 	);
 
 	// Monitor drag drops to stop scrolling, update shifts, and possibly reorder.
 	const onMonitorDragDrop = useCallback(
-		(event: DraxMonitorDragDropEventData) => {
-			const { dragged, receiver } = event;
-			const fromIndex = (dragged.parentId === id)
-				? (dragged.payload as ListItemPayload).index
-				: undefined;
-			const toIndex = (fromIndex !== undefined && receiver.parentId === id)
-				? (receiver.payload as ListItemPayload).index
-				: undefined;
-			handleDragEnd(fromIndex, toIndex);
-		},
-		[id, handleDragEnd],
+		({ dragged, receiver }: DraxMonitorDragDropEventData) => handleDragEnd(dragged, receiver),
+		[handleDragEnd],
 	);
 
 	return id ? (
@@ -442,6 +472,7 @@ export const DraxList = <T extends unknown>(
 			onMeasure={onMeasureContainer}
 			onMonitorDragOver={onMonitorDragOver}
 			onMonitorDragExit={onMonitorDragExit}
+			onMonitorDragEnd={onMonitorDragEnd}
 			onMonitorDragDrop={onMonitorDragDrop}
 			style={style}
 		>

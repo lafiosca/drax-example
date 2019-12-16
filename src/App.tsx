@@ -358,17 +358,24 @@ const App = () => {
 							</View>
 						</DraxView>
 					</View> */}
-					{/* <DraxList
-						style={{ marginTop: 100 }}
-						data={['1', '2', '3', '4', '5', '6', '7', '8', '9']}
+					<DraxList
+						data={['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']}
 						horizontal
 						renderItem={({ item }) => (
-							<View style={styles.bottomBox}>
+							<View
+								style={[
+									styles.bottomBox,
+									{
+										width: 40 + (+item % 5 === 0 ? 20 : 0),
+										backgroundColor: +item % 5 === 0 ? '#ffff99' : (+item % 2 === 0 ? '#999999' : '#9999ff'),
+									},
+								]}
+							>
 								<Text style={styles.bottomBoxText}>{item}</Text>
 							</View>
 						)}
 						keyExtractor={(item) => item}
-					/> */}
+					/>
 					<DraxList
 						style={{ flex: 1 }}
 						// data={['A', 'B', 'C', 'D']}
