@@ -6,6 +6,7 @@ import React, {
 	useEffect,
 	useCallback,
 	useMemo,
+	useLayoutEffect,
 } from 'react';
 import {
 	ListRenderItemInfo,
@@ -37,11 +38,6 @@ interface Shift {
 	animatedValue: Animated.Value;
 }
 
-interface Reorder {
-	fromIndex: number;
-	toIndex: number;
-}
-
 interface ListItemPayload {
 	index: number;
 	originalIndex: number;
@@ -52,6 +48,7 @@ export const DraxList = <T extends unknown>(
 		renderItem,
 		data,
 		style,
+		onListItemMoved,
 		id: idProp,
 		...props
 	}: PropsWithChildren<DraxListProps<T>>,
@@ -134,7 +131,7 @@ export const DraxList = <T extends unknown>(
 	);
 
 	// Clear reorders when data changes.
-	useEffect(
+	useLayoutEffect(
 		() => {
 			console.log('clear reorders');
 			setOriginalIndexes(data ? [...Array(data.length).keys()] : []);
@@ -152,16 +149,6 @@ export const DraxList = <T extends unknown>(
 			return originalIndexes.map((index) => data[index]);
 		},
 		[id, data, originalIndexes],
-	);
-
-	useEffect(
-		() => {
-			console.log('re-measure views on data change');
-			registrationsRef.current.forEach((registration) => {
-				registration?.measure();
-			});
-		},
-		[reorderedData],
 	);
 
 	// Get shift transform for list item at index.
@@ -184,13 +171,17 @@ export const DraxList = <T extends unknown>(
 			return (
 				<DraxView
 					style={{ transform: getShiftTransform(originalIndex) }}
-					id={`${id}[${originalIndex}]`}
 					payload={{ index, originalIndex }}
 					onMeasure={(measurements) => {
+						console.log(`measuring [${index}, ${originalIndex}]: (${measurements?.x}, ${measurements?.y})`);
 						measurementsRef.current[originalIndex] = measurements;
 					}}
 					registration={(registration) => {
-						registrationsRef.current[originalIndex] = registration;
+						if (registration) {
+							console.log(`registering [${index}, ${originalIndex}], ${registration.id}`);
+							registrationsRef.current[originalIndex] = registration;
+							registration.measure();
+						}
 					}}
 					draggingStyle={{ opacity: 0 }}
 					dragReleasedStyle={{ opacity: 0.5 }}
@@ -391,6 +382,7 @@ export const DraxList = <T extends unknown>(
 					const newOriginalIndexes = originalIndexes.slice();
 					newOriginalIndexes.splice(toIndex, 0, newOriginalIndexes.splice(fromIndex, 1)[0]);
 					setOriginalIndexes(newOriginalIndexes);
+					onListItemMoved?.(fromIndex, toIndex);
 					return snapbackTarget;
 				}
 			}
@@ -403,6 +395,7 @@ export const DraxList = <T extends unknown>(
 			resetShifts,
 			calculateSnapbackTarget,
 			originalIndexes,
+			onListItemMoved,
 		],
 	);
 

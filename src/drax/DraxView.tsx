@@ -26,6 +26,7 @@ import {
 	DraxHoverViewProps,
 	DraxViewState,
 	DraxViewMeasurements,
+	DraxViewMeasurementHandler,
 } from './types';
 import { defaultLongPressDelay } from './params';
 
@@ -315,45 +316,57 @@ export const DraxView = (
 		[throttledHandleGestureEvent],
 	);
 
-	// Report our measurements to Drax context.
-	const updateMeasurements = useCallback(
-		(x, y, width, height) => {
-			/*
-			 * In certain cases (on Android), all of these values can be
-			 * undefined when the view is not on screen; This should not
-			 * happen with the measurement functions we're using, but just
-			 * for the sake of paranoia, we'll check and send undefined
-			 * for the entire measurements object.
-			 */
-			const measurements = (height === undefined
-				? undefined
-				: {
-					x,
-					y,
-					width,
-					height,
-				}
-			);
-			measurementsRef.current = measurements;
-			updateViewMeasurements({ id, measurements });
-			onMeasure?.(measurements);
-		},
+	// Build a callback which will report our measurements to Drax context,
+	// onMeasure, and an optional measurement handler.
+	const buildMeasureCallback = useCallback(
+		(measurementHandler?: DraxViewMeasurementHandler) => (
+			(x?: number, y?: number, width?: number, height?: number) => {
+				/*
+				 * In certain cases (on Android), all of these values can be
+				 * undefined when the view is not on screen; This should not
+				 * happen with the measurement functions we're using, but just
+				 * for the sake of paranoia, we'll check and use undefined
+				 * for the entire measurements object.
+				 */
+				const measurements: DraxViewMeasurements | undefined = (
+					height === undefined
+						? undefined
+						: {
+							height,
+							x: x!,
+							y: y!,
+							width: width!,
+						}
+				);
+				measurementsRef.current = measurements;
+				updateViewMeasurements({ id, measurements });
+				onMeasure?.(measurements);
+				measurementHandler?.(measurements);
+			}
+		),
 		[id, updateViewMeasurements, onMeasure],
 	);
 
-	/*
-	 * Measure and send our measurements to Drax context, used when
-	 * we finish layout or receive a manual request,
-	 */
-	const measure = useCallback(
-		() => {
+	// Callback which will report our measurements to Drax context and onMeasure.
+	const updateMeasurements = useMemo(
+		() => buildMeasureCallback(),
+		[buildMeasureCallback],
+	);
+
+	// Measure and report our measurements to Drax context, onMeasure, and an
+	// optional measurement handler on demand.
+	const measureWithHandler = useCallback(
+		(measurementHandler?: DraxViewMeasurementHandler) => {
 			const view = viewRef.current?.getNode();
+			const measureCallback = measurementHandler
+				? buildMeasureCallback(measurementHandler)
+				: updateMeasurements;
 			if (parent) {
 				const nodeHandle = parent.nodeHandleRef.current;
 				if (nodeHandle) {
 					view?.measureLayout(
 						nodeHandle,
-						updateMeasurements,
+						measureCallback,
 						() => {
 							console.log('Failed to measure drax view in relation to parent');
 						},
@@ -362,10 +375,19 @@ export const DraxView = (
 					console.log('No parent nodeHandle to measure drax view in relation to');
 				}
 			} else {
-				viewRef.current?.getNode().measureInWindow(updateMeasurements);
+				viewRef.current?.getNode().measureInWindow(measureCallback);
 			}
 		},
-		[parent, updateMeasurements],
+		[parent, buildMeasureCallback, updateMeasurements],
+	);
+
+	// Measure and send our measurements to Drax context and onMeasure, used when this view finishes layout.
+	const onLayout = useCallback(
+		() => {
+			console.log(`onLayout ${id}`);
+			measureWithHandler();
+		},
+		[id, measureWithHandler],
 	);
 
 	// Register and unregister externally when necessary.
@@ -374,21 +396,21 @@ export const DraxView = (
 			if (id && registration) { // Register externally when we have an id and registration is set.
 				registration({
 					id,
-					measure,
+					measure: measureWithHandler,
 				});
 				return () => registration(undefined); // Unregister when we unmount or registration changes.
 			}
 			return undefined;
 		},
-		[id, registration, measure],
+		[id, registration, measureWithHandler],
 	);
 
-	useEffect(
-		() => {
-			console.log('throttle function replaced');
-		},
-		[throttledHandleGestureEvent],
-	);
+	// useEffect(
+	// 	() => {
+	// 		console.log('throttle function replaced');
+	// 	},
+	// 	[throttledHandleGestureEvent],
+	// );
 
 	const styles = useMemo(
 		() => {
@@ -466,7 +488,7 @@ export const DraxView = (
 				{...props}
 				ref={viewRef}
 				style={styles}
-				onLayout={measure}
+				onLayout={onLayout}
 				collapsable={false}
 			>
 				{children}

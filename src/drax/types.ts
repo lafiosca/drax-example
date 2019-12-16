@@ -493,7 +493,7 @@ export interface DraxProviderProps {
 /** Methods provided by a DraxView when registered externally */
 export interface DraxViewRegistration {
 	id: string;
-	measure: () => void;
+	measure: (measurementHandler?: DraxViewMeasurementHandler) => void;
 }
 
 /** Information about the parent of a nested DraxView, primarily used for scrollable parent views */
@@ -521,6 +521,11 @@ type AnimatedStyle<T> = {
 
 /** Style for an Animated.View */
 type AnimatedViewStyle = AnimatedStyle<ViewStyle>;
+
+/** Function that receives a Drax view measurement */
+export interface DraxViewMeasurementHandler {
+	(measurements: DraxViewMeasurements | undefined): void
+}
 
 /** Props for a DraxView; combines protocol props and standard view props */
 export interface DraxViewProps extends DraxProtocolProps, Omit<ViewProps, 'style'> {
@@ -576,7 +581,7 @@ export interface DraxViewProps extends DraxProtocolProps, Omit<ViewProps, 'style
 	registration?: (registration: DraxViewRegistration | undefined) => void;
 
 	/** For receiving view measurements externally */
-	onMeasure?: (measurements: DraxViewMeasurements | undefined) => void;
+	onMeasure?: DraxViewMeasurementHandler;
 
 	/** Unique drax view id, auto-generated if omitted */
 	id?: string;
@@ -594,6 +599,9 @@ export interface DraxViewProps extends DraxProtocolProps, Omit<ViewProps, 'style
 export interface DraxListProps<TItem> extends FlatListProperties<TItem> {
 	/** Unique drax view id, auto-generated if omitted */
 	id?: string;
+
+	/** Callback handler for when a list item is moved */
+	onListItemMoved?: (fromIndex: number, toIndex: number) => void;
 }
 
 export enum DraxListScrollStatus {

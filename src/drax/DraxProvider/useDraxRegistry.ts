@@ -353,7 +353,7 @@ const updateViewMeasurementsInRegistry = (
 ) => {
 	const existingData = getViewDataFromRegistry(registry, id);
 	if (existingData) {
-		console.log(`Update ${id} measurements: ${JSON.stringify(measurements, null, 2)}`);
+		console.log(`Update ${id} measurements: @(${measurements?.x}, ${measurements?.y}) ${measurements?.width}x${measurements?.height}`);
 		registry.viewDataById[id].measurements = measurements;
 	}
 };

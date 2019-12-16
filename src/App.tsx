@@ -27,6 +27,9 @@ const App = () => {
 	const viewRef = useRef<View>(null);
 	const scrollRef = useRef<ScrollView>(null);
 	const flatRef = useRef<FlatList<string>>(null);
+	const [numData, setNumData] = useState([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+	const [alphaData, setAlphaData] = useState(['A', 'B', 'C']);
+	// const [alphaData, setAlphaData] = useState(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R']);
 	const measureRef = (name: string, ref: RefObject<View>) => {
 		ref.current?.measure((x, y, width, height, pageX, pageY) => {
 			console.log(`${name} measure: ${JSON.stringify({ x, y, width, height, pageX, pageY }, null, 2)}`);
@@ -358,35 +361,59 @@ const App = () => {
 							</View>
 						</DraxView>
 					</View> */}
-					<DraxList
-						data={['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']}
+					{/* <DraxList
+						data={numData}
 						horizontal
 						renderItem={({ item }) => (
 							<View
 								style={[
 									styles.bottomBox,
 									{
-										width: 40 + (+item % 5 === 0 ? 20 : 0),
-										backgroundColor: +item % 5 === 0 ? '#ffff99' : (+item % 2 === 0 ? '#999999' : '#9999ff'),
+										width: 40 + (item % 5 === 0 ? 20 : 0),
+										backgroundColor: item % 5 === 0 ? '#ffff99' : (item % 2 === 0 ? '#999999' : '#9999ff'),
+									},
+								]}
+							>
+								<Text style={styles.bottomBoxText}>{`${item}`}</Text>
+							</View>
+						)}
+						onListItemMoved={(fromIndex, toIndex) => {
+							const newData = numData.slice();
+							newData.splice(toIndex, 0, newData.splice(fromIndex, 1)[0]);
+							setNumData(newData);
+						}}
+						keyExtractor={(item) => `${item}`}
+					/> */}
+					<DraxList
+						style={{ flex: 1 }}
+						data={alphaData}
+						renderItem={({ item }) => (
+							<View
+								style={[
+									styles.bottomBox,
+									{
+										height: 50
+											+ ((item.charCodeAt(0) - 65) % 2 === 0 ? 10 : 0)
+											+ ((item.charCodeAt(0) - 65) % 3 === 0 ? 20 : 0),
 									},
 								]}
 							>
 								<Text style={styles.bottomBoxText}>{item}</Text>
 							</View>
 						)}
+						// onListItemMoved={(fromIndex, toIndex) => {
+						// 	setTimeout(
+						// 		() => {
+						// 			const newData = alphaData.slice();
+						// 			newData.splice(toIndex, 0, newData.splice(fromIndex, 1)[0]);
+						// 			setAlphaData(newData);
+						// 		},
+						// 		2000,
+						// 	);
+						// }}
 						keyExtractor={(item) => item}
 					/>
-					<DraxList
-						style={{ flex: 1 }}
-						// data={['A', 'B', 'C', 'D']}
-						data={['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R']}
-						renderItem={({ item }) => (
-							<View style={[styles.bottomBox, { height: 50 + ((item.charCodeAt(0) - 65) % 2 === 0 ? 10 : 0) + ((item.charCodeAt(0) - 65) % 3 === 0 ? 20 : 0) }]}>
-								<Text style={styles.bottomBoxText}>{item}</Text>
-							</View>
-						)}
-						keyExtractor={(item) => item}
-					/>
+					{/* <Button title="X" onPress={() => setAlphaData([alphaData[1], alphaData[0], ...alphaData.slice(2)])} /> */}
 				</DraxProvider>
 			</SafeAreaView>
 		</>
