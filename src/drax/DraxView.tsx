@@ -43,9 +43,11 @@ export const DraxView = (
 		onReceiveDragOver,
 		onReceiveDragExit,
 		onReceiveDragDrop,
+		onMonitorDragStart,
 		onMonitorDragEnter,
 		onMonitorDragOver,
 		onMonitorDragExit,
+		onMonitorDragEnd,
 		onMonitorDragDrop,
 		animateSnapback,
 		snapbackDelay,
@@ -103,9 +105,11 @@ export const DraxView = (
 		|| !!onReceiveDragDrop
 	);
 	const monitoring = monitoringProp ?? (
-		!!onMonitorDragEnter
-		|| !!onMonitorDragExit
+		!!onMonitorDragStart
+		|| !!onMonitorDragEnter
 		|| !!onMonitorDragOver
+		|| !!onMonitorDragExit
+		|| !!onMonitorDragEnd
 		|| !!onMonitorDragDrop
 	);
 
@@ -243,9 +247,11 @@ export const DraxView = (
 						onReceiveDragOver,
 						onReceiveDragExit,
 						onReceiveDragDrop,
+						onMonitorDragStart,
 						onMonitorDragEnter,
 						onMonitorDragOver,
 						onMonitorDragExit,
+						onMonitorDragEnd,
 						onMonitorDragDrop,
 						animateSnapback,
 						snapbackDelay,
@@ -275,9 +281,11 @@ export const DraxView = (
 			onReceiveDragOver,
 			onReceiveDragExit,
 			onReceiveDragDrop,
+			onMonitorDragStart,
 			onMonitorDragEnter,
 			onMonitorDragOver,
 			onMonitorDragExit,
+			onMonitorDragEnd,
 			onMonitorDragDrop,
 			animateSnapback,
 			snapbackDelay,

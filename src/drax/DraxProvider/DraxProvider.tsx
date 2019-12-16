@@ -382,6 +382,8 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 					console.log(`Start dragging view id ${id} at screen position (${screenPosition.x}, ${screenPosition.y})`);
 				}
 				draggedData.protocol.onDragStart?.({ screenPosition });
+
+				// TODO: find monitors and call onMonitorDragStart
 			}
 		},
 		[

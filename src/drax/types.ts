@@ -172,6 +172,9 @@ export interface DraxProtocol {
 	/** Called in the receiver view when drag ends over it */
 	onReceiveDragDrop?: (data: DraxReceiveEventData) => DraxProtocolDragEndResponse;
 
+	/** Called in the monitor view when a drag action begins over it */
+	onMonitorDragStart?: (data: DraxMonitorEventData) => void;
+
 	/** Called in the monitor view each time an item is initially dragged over it */
 	onMonitorDragEnter?: (data: DraxMonitorEventData) => void;
 
