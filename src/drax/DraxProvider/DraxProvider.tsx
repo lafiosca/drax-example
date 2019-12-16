@@ -148,6 +148,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 							console.log(`Received unexpected FAILED event for dragged view id ${id}`);
 						}
 						endDrag = true;
+						cancelled = true;
 						break;
 					case State.END:
 						// User has ended the gesture, so end the drag, dropping into receiver if applicable.
@@ -237,7 +238,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 					// There is no receiver, or the drag was cancelled.
 
 					// Let the dragged item know the drag ended.
-					draggedData.protocol.onDragEnd?.({ screenPosition, cancelled });
+					const response = draggedData.protocol.onDragEnd?.({ screenPosition, cancelled });
 
 					// If there is a receiver but drag was cancelled, let it know the drag exited it.
 					if (receiverData) {
@@ -609,14 +610,19 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 	};
 
 	const hoverViews: ReactNodeArray = [];
-	getHoverItems().forEach(({ id, renderHoverView, hoverPosition }) => {
+	getHoverItems().forEach(({
+		id,
+		key,
+		renderHoverView,
+		hoverPosition,
+	}) => {
 		const viewState = getViewState(id);
 		if (viewState) {
 			const hoverView = renderHoverView({ viewState });
 			if (hoverView) {
 				hoverViews.push((
 					<Animated.View
-						key={`hover-${id}`}
+						key={key}
 						style={{ transform: hoverPosition.getTranslateTransform() }}
 					>
 						{hoverView}

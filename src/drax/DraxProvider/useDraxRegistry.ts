@@ -27,13 +27,16 @@ import {
 	DraxViewState,
 	DraxStateDispatch,
 	DraxTrackingRelease,
+	DraxSnapbackTarget,
+	DraxSnapbackTargetPreset,
+	isPosition,
 } from '../types';
 import {
 	clipMeasurements,
 	isPointInside,
 	getRelativePosition,
 } from '../math';
-import { defaultDragReleaseAnimationDelay, defaultDragReleaseAnimationDuration } from '../params';
+import { defaultSnapbackDelay, defaultSnapbackDuration } from '../params';
 
 /*
  * The registry functions mutate their registry parameter, so let's
@@ -258,6 +261,7 @@ const getHoverItemsFromRegistry = (registry: DraxRegistry) => {
 				hoverItems.push({
 					hoverPosition,
 					renderHoverView,
+					key: releaseId,
 					id: viewId,
 				});
 			}
@@ -270,6 +274,7 @@ const getHoverItemsFromRegistry = (registry: DraxRegistry) => {
 	if (draggedId && renderHoverView) {
 		hoverItems.push({
 			renderHoverView,
+			key: `dragged-hover-${draggedId}`,
 			id: draggedId,
 			hoverPosition: registry.drag!.hoverPosition,
 		});
@@ -398,7 +403,10 @@ const deleteReleaseInRegistry = (registry: DraxRegistry, releaseId: string) => {
 };
 
 /** Reset drag tracking, if any. */
-const resetDragInRegistry = (registry: DraxRegistry) => {
+const resetDragInRegistry = (
+	registry: DraxRegistry,
+	snapbackTarget: DraxSnapbackTarget = DraxSnapbackTargetPreset.Default,
+) => {
 	const { drag, stateDispatch } = registry;
 
 	if (!drag) {
@@ -407,11 +415,7 @@ const resetDragInRegistry = (registry: DraxRegistry) => {
 
 	resetReceiverInRegistry(registry);
 
-	const {
-		draggedId,
-		screenStartPosition,
-		hoverPosition,
-	} = drag;
+	const { draggedId, hoverPosition } = drag;
 
 	const draggedData = getAbsoluteViewDataFromRegistry(registry, draggedId);
 
@@ -419,56 +423,81 @@ const resetDragInRegistry = (registry: DraxRegistry) => {
 	console.log('clearing drag');
 	registry.drag = undefined;
 
-	// Update the dragged view state to released.
+	// Determine if/where/how to snapback.
+	let snapping = false;
+	if (snapbackTarget !== DraxSnapbackTargetPreset.None && draggedData) {
+		const {
+			renderHoverView,
+			animateSnapback = true,
+			snapbackDelay = defaultSnapbackDelay,
+			snapbackDuration = defaultSnapbackDuration,
+		} = draggedData.protocol;
+		if (renderHoverView && animateSnapback) {
+			let toValue: Position | undefined;
+
+			if (isPosition(snapbackTarget)) {
+				// Snapback to specified target.
+				toValue = snapbackTarget;
+			} else {
+				// Snapback to default position (where original view is).
+				toValue = {
+					x: draggedData.absoluteMeasurements.x,
+					y: draggedData.absoluteMeasurements.y,
+				};
+			}
+
+			if (toValue && snapbackDuration > 0) {
+				snapping = true;
+				// Add a release to tracking.
+				const releaseId = createReleaseInRegistry(registry, { hoverPosition, viewId: draggedId });
+				// Animate the released hover snapback.
+				Animated.timing(
+					hoverPosition,
+					{
+						toValue,
+						delay: snapbackDelay,
+						duration: snapbackDuration,
+					},
+				).start(({ finished }) => {
+					// Remove the release from tracking, regardless of whether animation finished.
+					deleteReleaseInRegistry(registry, releaseId);
+					// If the animation finished, update the view state for the released view to be inactive.
+					if (finished) {
+						stateDispatch(actions.updateViewState({
+							id: draggedId,
+							viewStateUpdate: {
+								dragStatus: DraxViewDragStatus.Inactive,
+								hoverPosition: undefined,
+							},
+						}));
+					}
+				});
+			}
+		}
+	}
+
+	// Update the drag tracking status.
 	stateDispatch(actions.updateTrackingStatus({ dragging: false }));
+
+	// Update the view state, dependent on whether snapping back.
+	const viewStateUpdate: Partial<DraxViewState> = {
+		dragScreenPosition: undefined,
+		dragOffset: undefined,
+		grabOffset: undefined,
+		grabOffsetRatio: undefined,
+	};
+
+	if (snapping) {
+		viewStateUpdate.dragStatus = DraxViewDragStatus.Released;
+	} else {
+		viewStateUpdate.dragStatus = DraxViewDragStatus.Inactive;
+		viewStateUpdate.hoverPosition = undefined;
+	}
+
 	stateDispatch(actions.updateViewState({
+		viewStateUpdate,
 		id: draggedId,
-		viewStateUpdate: {
-			dragStatus: DraxViewDragStatus.Released,
-			dragScreenPosition: undefined,
-			dragOffset: undefined,
-			grabOffset: undefined,
-			grabOffsetRatio: undefined,
-		},
 	}));
-
-	// Add a release to tracking.
-	const releaseId = createReleaseInRegistry(registry, { hoverPosition, viewId: draggedId });
-
-	// Get the required release animation parameters.
-	const toValue = draggedData
-		? {
-			x: draggedData.absoluteMeasurements.x,
-			y: draggedData.absoluteMeasurements.y,
-		}
-		: screenStartPosition;
-	const {
-		dragReleaseAnimationDelay = defaultDragReleaseAnimationDelay,
-		dragReleaseAnimationDuration = defaultDragReleaseAnimationDuration,
-	} = draggedData?.protocol || {};
-
-	// Animate the released hover snapback.
-	Animated.timing(
-		hoverPosition,
-		{
-			toValue,
-			delay: dragReleaseAnimationDelay,
-			duration: dragReleaseAnimationDuration,
-		},
-	).start(({ finished }) => {
-		// Remove the release from tracking, regardless of whether animation finished.
-		deleteReleaseInRegistry(registry, releaseId);
-		// If the animation finished, update the view state for the released view to be inactive.
-		if (finished) {
-			stateDispatch(actions.updateViewState({
-				id: draggedId,
-				viewStateUpdate: {
-					dragStatus: DraxViewDragStatus.Inactive,
-					hoverPosition: undefined,
-				},
-			}));
-		}
-	});
 };
 
 /** Start tracking a drag. */

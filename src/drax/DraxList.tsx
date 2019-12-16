@@ -194,6 +194,7 @@ export const DraxList = <T extends unknown>(
 					hoverStyle={{ backgroundColor: 'blue' }}
 					hoverDraggingStyle={{ backgroundColor: 'red' }}
 					receivingStyle={{ backgroundColor: 'magenta' }}
+					animateSnapback={false}
 					parent={{ id, nodeHandleRef }}
 				>
 					{renderItem(info)}

@@ -46,6 +46,11 @@ export interface Position {
 	y: number;
 }
 
+/** Predicate for checking if something is a Position */
+export const isPosition = (something: any): something is Position => (
+	something !== undefined && typeof something.x === 'number' && typeof something.y === 'number'
+);
+
 /** Data about a Drax event common to all protocol callbacks */
 export interface DraxEventData {
 	/** Position of the event in screen coordinates */
@@ -117,12 +122,20 @@ export interface DraxHoverViewProps {
 	viewState: DraxViewState;
 }
 
+/** Preset values for specifying snapback targets without a Position */
+export enum DraxSnapbackTargetPreset {
+	Default,
+	None,
+}
+
+/** Target for snapback hover view release animation: none, default, or specified Position */
+export type DraxSnapbackTarget = DraxSnapbackTargetPreset | Position;
+
 /**
  * Response type for Drax protocol callbacks involving end of a drag,
- * allowing modification of default release behavior. If true, suppress
- * the release snapback. If a Position, snapback to those screen coordinates.
+ * allowing override of default release snapback behavior.
  */
-export type DraxProtocolDragEndResponse = void | boolean | Position;
+export type DraxProtocolDragEndResponse = void | DraxSnapbackTarget;
 
 /** Callback protocol for communicating Drax events to views */
 export interface DraxProtocol {
@@ -174,11 +187,14 @@ export interface DraxProtocol {
 	/** Function for rendering hovering version of view when dragged */
 	renderHoverView?: (props: DraxHoverViewProps) => ReactNode;
 
-	/** When releasing a drag of this view, delay in ms before it snaps back to inactive state */
-	dragReleaseAnimationDelay?: number;
+	/** Whether or not to animate hover view snapback after drag release, defaults to true if renderHoverView set */
+	animateSnapback?: boolean;
 
-	/** When releasing a drag of this view, duration in ms for it to snap back to inactive state */
-	dragReleaseAnimationDuration?: number;
+	/** Delay in ms before hover view snapback begins after drag is released */
+	snapbackDelay?: number;
+
+	/** Duration in ms for hover view snapback to complete */
+	snapbackDuration?: number;
 
 	/** Payload that will be delivered to receiver views when this view is dragged; overrides `payload` */
 	dragPayload?: any;
