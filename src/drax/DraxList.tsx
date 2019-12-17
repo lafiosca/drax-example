@@ -130,7 +130,7 @@ export const DraxList = <T extends unknown>(
 		[itemCount],
 	);
 
-	// Clear reorders when data changes.
+	// Clear reorders when data changes, but wait for drag to complete.
 	useLayoutEffect(
 		() => {
 			console.log('clear reorders');
