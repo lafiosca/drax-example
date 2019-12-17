@@ -401,19 +401,18 @@ const App = () => {
 								<Text style={styles.bottomBoxText}>{item}</Text>
 							</View>
 						)}
-						// onListItemMoved={(fromIndex, toIndex) => {
-						// 	setTimeout(
-						// 		() => {
-						// 			const newData = alphaData.slice();
-						// 			newData.splice(toIndex, 0, newData.splice(fromIndex, 1)[0]);
-						// 			setAlphaData(newData);
-						// 		},
-						// 		2000,
-						// 	);
-						// }}
+						onListItemMoved={(fromIndex, toIndex) => {
+							setTimeout(
+								() => {
+									const newData = alphaData.slice();
+									newData.splice(toIndex, 0, newData.splice(fromIndex, 1)[0]);
+									setAlphaData(newData);
+								},
+								50,
+							);
+						}}
 						keyExtractor={(item) => item}
 					/>
-					{/* <Button title="X" onPress={() => setAlphaData([alphaData[1], alphaData[0], ...alphaData.slice(2)])} /> */}
 				</DraxProvider>
 			</SafeAreaView>
 		</>

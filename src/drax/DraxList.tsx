@@ -74,6 +74,9 @@ export const DraxList = <T extends unknown>(
 	// Scroll position, for Drax bounds checking and auto-scrolling.
 	const scrollPositionRef = useRef<Position>({ x: 0, y: 0 });
 
+	// Original index of the currently dragged list item, if any.
+	const draggedItemRef = useRef<number | undefined>(undefined);
+
 	// Auto-scrolling state.
 	const scrollStateRef = useRef(DraxListScrollStatus.Inactive);
 
@@ -81,7 +84,7 @@ export const DraxList = <T extends unknown>(
 	const scrollIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
 	// List item measurements, for determining shift.
-	const measurementsRef = useRef<(DraxViewMeasurements | undefined)[]>([]);
+	const itemMeasurementsRef = useRef<(DraxViewMeasurements | undefined)[]>([]);
 
 	// Drax view registrations, for remeasuring after reorder.
 	const registrationsRef = useRef<(DraxViewRegistration | undefined)[]>([]);
@@ -109,16 +112,16 @@ export const DraxList = <T extends unknown>(
 	// Adjust measurements and shift value arrays as item count changes.
 	useEffect(
 		() => {
-			const measurements = measurementsRef.current;
+			const itemMeasurements = itemMeasurementsRef.current;
 			const registrations = registrationsRef.current;
 			const shifts = shiftsRef.current;
-			if (measurements.length > itemCount) {
-				measurements.splice(itemCount - measurements.length);
+			if (itemMeasurements.length > itemCount) {
+				itemMeasurements.splice(itemCount - itemMeasurements.length);
 				registrations.splice(itemCount - registrations.length);
 				shifts.splice(itemCount - shifts.length);
 			} else {
-				while (measurements.length < itemCount) {
-					measurements.push(undefined);
+				while (itemMeasurements.length < itemCount) {
+					itemMeasurements.push(undefined);
 					registrations.push(undefined);
 					shifts.push({
 						targetValue: 0,
@@ -162,6 +165,22 @@ export const DraxList = <T extends unknown>(
 		[horizontal],
 	);
 
+	// Set the currently dragged list item.
+	const setDraggedItem = useCallback(
+		(originalIndex: number) => {
+			draggedItemRef.current = originalIndex;
+		},
+		[],
+	);
+
+	// Clear the currently dragged list item.
+	const resetDraggedItem = useCallback(
+		() => {
+			draggedItemRef.current = undefined;
+		},
+		[],
+	);
+
 	// Drax view renderItem wrapper.
 	const renderDraxViewItem = useCallback(
 		(info: ListRenderItemInfo<T>) => {
@@ -172,9 +191,12 @@ export const DraxList = <T extends unknown>(
 				<DraxView
 					style={{ transform: getShiftTransform(originalIndex) }}
 					payload={{ index, originalIndex }}
+					onDragStart={() => setDraggedItem(originalIndex)}
+					onDragEnd={resetDraggedItem}
+					onDragDrop={resetDraggedItem}
 					onMeasure={(measurements) => {
 						console.log(`measuring [${index}, ${originalIndex}]: (${measurements?.x}, ${measurements?.y})`);
-						measurementsRef.current[originalIndex] = measurements;
+						itemMeasurementsRef.current[originalIndex] = measurements;
 					}}
 					registration={(registration) => {
 						if (registration) {
@@ -183,7 +205,7 @@ export const DraxList = <T extends unknown>(
 							registration.measure();
 						}
 					}}
-					draggingStyle={{ opacity: 0 }}
+					draggingStyle={{ opacity: 0.1, backgroundColor: 'magenta' }}
 					dragReleasedStyle={{ opacity: 0.5 }}
 					hoverStyle={{ backgroundColor: 'blue' }}
 					hoverDraggingStyle={{ backgroundColor: 'red' }}
@@ -197,6 +219,8 @@ export const DraxList = <T extends unknown>(
 			id,
 			originalIndexes,
 			getShiftTransform,
+			setDraggedItem,
+			resetDraggedItem,
 			renderItem,
 		],
 	);
@@ -313,7 +337,7 @@ export const DraxList = <T extends unknown>(
 			{ index: fromIndex, originalIndex: fromOriginalIndex }: ListItemPayload,
 			{ index: toIndex }: ListItemPayload,
 		) => {
-			const { width = 50, height = 50 } = measurementsRef.current[fromOriginalIndex] ?? {};
+			const { width = 50, height = 50 } = itemMeasurementsRef.current[fromOriginalIndex] ?? {};
 			const offset = horizontal ? width : height;
 			originalIndexes.forEach((originalIndex, index) => {
 				const shift = shiftsRef.current[originalIndex];
@@ -337,25 +361,61 @@ export const DraxList = <T extends unknown>(
 
 	// Calculate screen position of list item for snapback.
 	const calculateSnapbackTarget = useCallback(
-		(index: number) => {
+		(
+			{ index: fromIndex, originalIndex: fromOriginalIndex }: ListItemPayload,
+			{ index: toIndex, originalIndex: toOriginalIndex }: ListItemPayload,
+		) => {
 			const containerMeasurements = containerMeasurementsRef.current;
+			const itemMeasurements = itemMeasurementsRef.current;
 			if (containerMeasurements) {
-				const measurements = measurementsRef.current[index];
-				if (measurements) {
+				let targetPos: Position | undefined;
+				if (fromIndex < toIndex) {
+					// Target pos(toIndex + 1) - pos(fromIndex)
+					const nextIndex = toIndex + 1;
+					let nextPos: Position | undefined;
+					if (nextIndex < itemCount) {
+						// toIndex + 1 is in the list. We can measure the position of the next item.
+						const nextMeasurements = itemMeasurements[originalIndexes[nextIndex]];
+						if (nextMeasurements) {
+							nextPos = { x: nextMeasurements.x, y: nextMeasurements.y };
+						}
+					} else {
+						// toIndex is the last item of the list. We can use the list content size.
+						const contentSize = contentSizeRef.current;
+						if (contentSize) {
+							nextPos = horizontal
+								? { x: contentSize.x, y: 0 }
+								: { x: 0, y: contentSize.y };
+						}
+					}
+					const fromMeasurements = itemMeasurements[fromOriginalIndex];
+					if (nextPos && fromMeasurements) {
+						targetPos = horizontal
+							? { x: nextPos.x - fromMeasurements.width, y: nextPos.y }
+							: { x: nextPos.x, y: nextPos.y - fromMeasurements.height };
+					}
+				} else {
+					// Target pos(toIndex)
+					const toMeasurements = itemMeasurements[toOriginalIndex];
+					if (toMeasurements) {
+						targetPos = { x: toMeasurements.x, y: toMeasurements.y };
+					}
+				}
+				if (targetPos) {
 					const scrollPosition = scrollPositionRef.current;
 					return {
-						x: containerMeasurements.x - scrollPosition.x + measurements.x,
-						y: containerMeasurements.y - scrollPosition.y + measurements.y,
+						x: containerMeasurements.x - scrollPosition.x + targetPos.x,
+						y: containerMeasurements.y - scrollPosition.y + targetPos.y,
 					};
 				}
 			}
 			return DraxSnapbackTargetPreset.None;
 		},
-		[],
+		[horizontal, itemCount, originalIndexes],
 	);
 
 	// Stop scrolling, and potentially update shifts and reorder data.
-	const handleDragEnd = useCallback(
+	const handleInternalDragEnd = useCallback(
 		(
 			dragged?: DraxEventViewData,
 			receiver?: DraxEventViewData,
@@ -365,20 +425,22 @@ export const DraxList = <T extends unknown>(
 			stopScroll();
 
 			// Determine list indexes of dragged/received items, if any.
-			const fromIndex = dragged && (dragged.parentId === id)
-				? (dragged.payload as ListItemPayload).index
+			const fromPayload = dragged && (dragged.parentId === id)
+				? (dragged.payload as ListItemPayload)
 				: undefined;
-			const toIndex = (fromIndex !== undefined && receiver && receiver.parentId === id)
-				? (receiver.payload as ListItemPayload).index
+			const toPayload = (fromPayload !== undefined && receiver && receiver.parentId === id)
+				? (receiver.payload as ListItemPayload)
 				: undefined;
 
-			if (fromIndex !== undefined) {
+			if (fromPayload !== undefined) {
 				// If dragged item was ours, reset shifts.
 				resetShifts();
-				if (toIndex !== undefined) {
+				if (toPayload !== undefined) {
 					// If dragged item and received item were ours, reorder data.
-					console.log(`moving ${fromIndex} -> ${toIndex}`);
-					const snapbackTarget = calculateSnapbackTarget(originalIndexes[toIndex]);
+					console.log(`moving ${fromPayload.index} -> ${toPayload.index}`);
+					const snapbackTarget = calculateSnapbackTarget(fromPayload, toPayload);
+					const { index: fromIndex } = fromPayload;
+					const { index: toIndex } = toPayload;
 					const newOriginalIndexes = originalIndexes.slice();
 					newOriginalIndexes.splice(toIndex, 0, newOriginalIndexes.splice(fromIndex, 1)[0]);
 					setOriginalIndexes(newOriginalIndexes);
@@ -436,10 +498,10 @@ export const DraxList = <T extends unknown>(
 		],
 	);
 
-	// Monitor drag exits to stop scrolling, update shifts, and possibly reorder.
+	// Monitor drag exits to stop scrolling and update shifts.
 	const onMonitorDragExit = useCallback(
-		({ dragged }: DraxMonitorEventData) => handleDragEnd(dragged),
-		[handleDragEnd],
+		({ dragged }: DraxMonitorEventData) => handleInternalDragEnd(dragged),
+		[handleInternalDragEnd],
 	);
 
 	/*
@@ -448,14 +510,14 @@ export const DraxList = <T extends unknown>(
 	 * too far, the drag gets cancelled.
 	 */
 	const onMonitorDragEnd = useCallback(
-		({ dragged, receiver }: DraxMonitorEndEventData) => handleDragEnd(dragged, receiver),
-		[handleDragEnd],
+		({ dragged, receiver }: DraxMonitorEndEventData) => handleInternalDragEnd(dragged, receiver),
+		[handleInternalDragEnd],
 	);
 
 	// Monitor drag drops to stop scrolling, update shifts, and possibly reorder.
 	const onMonitorDragDrop = useCallback(
-		({ dragged, receiver }: DraxMonitorDragDropEventData) => handleDragEnd(dragged, receiver),
-		[handleDragEnd],
+		({ dragged, receiver }: DraxMonitorDragDropEventData) => handleInternalDragEnd(dragged, receiver),
+		[handleInternalDragEnd],
 	);
 
 	return id ? (
