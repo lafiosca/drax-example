@@ -7,7 +7,7 @@ import {
 import { Animated } from 'react-native';
 import uuid from 'uuid/v4';
 
-import { actions } from './actions';
+import { actions } from './useDraxState';
 import {
 	DraxRegistry,
 	DraxViewDragStatus,

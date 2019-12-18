@@ -6,6 +6,7 @@ import {
 	FlatListProperties,
 	ViewStyle,
 	StyleProp,
+	ScrollViewProperties,
 } from 'react-native';
 import {
 	LongPressGestureHandlerStateChangeEvent,
@@ -28,9 +29,9 @@ export type DraxGestureEvent = LongPressGestureHandlerGestureEvent['nativeEvent'
 
 /** Measurements of a Drax view for bounds checking purposes */
 export interface DraxViewMeasurements {
-	/** x position of view within parent drax view or screen */
+	/** x position of view within Drax parent view or screen */
 	x: number;
-	/** y position of view within parent drax view or screen */
+	/** y position of view within Drax parent view or screen */
 	y: number;
 	/** Width of view */
 	width: number;
@@ -244,7 +245,7 @@ export enum DraxViewReceiveStatus {
 
 /** Information about a view, used internally by the Drax provider */
 export interface DraxViewData {
-	/** The view's parent drax view id, if nested */
+	/** The view's Drax parent view id, if nested */
 	parentId?: string;
 	/** The view's scroll position ref, if it is a scrollable parent view */
 	scrollPositionRef?: RefObject<Position>;
@@ -385,7 +386,7 @@ export interface StartDragPayload {
 export interface RegisterViewPayload {
 	/** The view's unique identifier */
 	id: string;
-	/** The view's parent drax view id, if nested */
+	/** The view's Drax parent view id, if nested */
 	parentId?: string;
 	/** The view's scroll position ref, if it is a scrollable parent view */
 	scrollPositionRef?: RefObject<Position>;
@@ -497,8 +498,8 @@ export interface DraxContextValue {
 	/** Handle gesture event for a registered Drax view */
 	handleGestureEvent: (id: string, event: DraxGestureEvent) => void;
 
-	/** Parent Drax view for all views under this context, when nesting */
-	parent?: DraxViewParent;
+	/** Drax parent view for all views under this context, when nesting */
+	parent?: DraxParentView;
 }
 
 /** Type workaround for lack of Animated.View type, used in DraxView */
@@ -513,8 +514,8 @@ export interface DraxProviderProps {
 
 /** Props that are passed to a DraxSubprovider, used internally for nesting views */
 export interface DraxSubproviderProps {
-	/** Parent Drax view for all views under this subcontext, when nesting */
-	parent: DraxViewParent;
+	/** Drax parent view for all views under this subcontext, when nesting */
+	parent: DraxParentView;
 }
 
 /** Methods provided by a DraxView when registered externally */
@@ -524,7 +525,7 @@ export interface DraxViewRegistration {
 }
 
 /** Information about the parent of a nested DraxView, primarily used for scrollable parent views */
-export interface DraxViewParent {
+export interface DraxParentView {
 	/** Drax view id of the parent */
 	id: string;
 	/** Ref to node handle of the parent, for measuring relative to */
@@ -610,11 +611,14 @@ export interface DraxViewProps extends DraxProtocolProps, Omit<ViewProps, 'style
 	/** For receiving view measurements externally */
 	onMeasure?: DraxViewMeasurementHandler;
 
-	/** Unique drax view id, auto-generated if omitted */
+	/** Unique Drax view id, auto-generated if omitted */
 	id?: string;
 
-	/** Parent Drax view, if nesting */
-	parent?: DraxViewParent;
+	/** Drax parent view, if nesting */
+	parent?: DraxParentView;
+
+	/** If true, treat this view as a Drax parent view for nested children */
+	isParent?: boolean;
 
 	/** The view's scroll position ref, if it is a scrollable parent view */
 	scrollPositionRef?: RefObject<Position>;
@@ -623,6 +627,13 @@ export interface DraxViewProps extends DraxProtocolProps, Omit<ViewProps, 'style
 	longPressDelay?: number;
 }
 
+/** Props for a DraxScrollView; extends standard ScrollView props */
+export interface DraxScrollViewProps extends ScrollViewProperties {
+	/** Unique drax view id, auto-generated if omitted */
+	id?: string;
+}
+
+/** Props for a DraxListProps; extends standard FlatList props */
 export interface DraxListProps<TItem> extends FlatListProperties<TItem> {
 	/** Unique drax view id, auto-generated if omitted */
 	id?: string;
@@ -631,8 +642,15 @@ export interface DraxListProps<TItem> extends FlatListProperties<TItem> {
 	onListItemMoved?: (fromIndex: number, toIndex: number) => void;
 }
 
-export enum DraxListScrollStatus {
+/** Auto-scroll direction used internally by DraxScrollView and DraxList */
+export enum AutoScrollDirection {
 	Back = -1,
-	Inactive = 0,
+	None = 0,
 	Forward = 1,
+}
+
+/** Auto-scroll state used internally by DraxScrollView and DraxList */
+export interface AutoScrollState {
+	x: AutoScrollDirection;
+	y: AutoScrollDirection;
 }

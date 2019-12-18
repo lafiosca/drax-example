@@ -7,7 +7,7 @@ import React, {
 	useCallback,
 	useMemo,
 } from 'react';
-import { Animated, findNodeHandle, View } from 'react-native';
+import { Animated, View, findNodeHandle } from 'react-native';
 import {
 	LongPressGestureHandlerStateChangeEvent,
 	LongPressGestureHandler,
@@ -76,6 +76,7 @@ export const DraxView = (
 		onMeasure,
 		scrollPositionRef,
 		children,
+		isParent = false,
 		longPressDelay = defaultLongPressDelay,
 		id: idProp,
 		parent: parentProp,
@@ -120,12 +121,11 @@ export const DraxView = (
 	// The underlying View, for measuring.
 	const viewRef = useRef<View | null>(null);
 
-	// The underlying View node handle, used for subprovider nesting.
+	// The underlying View node handle, used for subprovider nesting if this is a Drax parent view.
 	const nodeHandleRef = useRef<number | null>(null);
 
 	// This view's measurements, for reference.
 	const measurementsRef = useRef<DraxViewMeasurements | undefined>(undefined);
-
 
 	// Connect with Drax.
 	const {
@@ -140,7 +140,7 @@ export const DraxView = (
 		parent: contextParent,
 	} = useDrax();
 
-	// Identify parent Drax view (if any) from context or prop override.
+	// Identify Drax parent view (if any) from context or prop override.
 	const parent = parentProp ?? contextParent;
 	const parentId = parent && parent.id;
 
@@ -512,9 +512,11 @@ export const DraxView = (
 				onLayout={onLayout}
 				collapsable={false}
 			>
-				<DraxSubprovider parent={{ id, nodeHandleRef }}>
-					{children}
-				</DraxSubprovider>
+				{isParent ? (
+					<DraxSubprovider parent={{ id, nodeHandleRef }}>
+						{children}
+					</DraxSubprovider>
+				) : children}
 			</Animated.View>
 		</LongPressGestureHandler>
 	);

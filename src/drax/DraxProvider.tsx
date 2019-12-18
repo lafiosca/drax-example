@@ -2,14 +2,12 @@ import React, {
 	FunctionComponent,
 	useCallback,
 	ReactNodeArray,
-	useMemo,
 } from 'react';
 import { View, StyleSheet, Animated } from 'react-native';
 import { State } from 'react-native-gesture-handler';
 
-import { useDraxState } from './useDraxState';
-import { useDraxRegistry } from './useDraxRegistry';
-import { DraxContext } from '../DraxContext';
+import { useDraxState, useDraxRegistry } from './hooks';
+import { DraxContext } from './DraxContext';
 import {
 	DraxProviderProps,
 	DraxContextValue,
@@ -17,8 +15,8 @@ import {
 	DraxGestureEvent,
 	DraxSnapbackTarget,
 	DraxSnapbackTargetPreset,
-} from '../types';
-import { getRelativePosition } from '../math';
+} from './types';
+import { getRelativePosition } from './math';
 
 export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = false, children }) => {
 	const {

@@ -14,13 +14,14 @@ import {
 	NativeSyntheticEvent,
 	FlatList,
 	Animated,
+	findNodeHandle,
 } from 'react-native';
 import uuid from 'uuid/v4';
 
 import {
 	DraxListProps,
 	DraxMonitorEventData,
-	DraxListScrollStatus,
+	AutoScrollDirection,
 	Position,
 	DraxViewMeasurements,
 	DraxMonitorDragDropEventData,
@@ -31,6 +32,7 @@ import {
 	DraxSnapbackTargetPreset,
 } from './types';
 import { DraxView } from './DraxView';
+import { DraxSubprovider } from './DraxSubprovider';
 
 interface Shift {
 	targetValue: number;
@@ -61,6 +63,9 @@ export const DraxList = <T extends unknown>(
 	// FlatList, used for scrolling.
 	const flatListRef = useRef<FlatList<T> | null>(null);
 
+	// FlatList node handle, used for measuring children.
+	const nodeHandleRef = useRef<number | null>(null);
+
 	// Container view measurements, for scrolling by percentage.
 	const containerMeasurementsRef = useRef<DraxViewMeasurements | undefined>(undefined);
 
@@ -74,7 +79,7 @@ export const DraxList = <T extends unknown>(
 	const draggedItemRef = useRef<number | undefined>(undefined);
 
 	// Auto-scrolling state.
-	const scrollStateRef = useRef(DraxListScrollStatus.Inactive);
+	const scrollStateRef = useRef(AutoScrollDirection.None);
 
 	// Auto-scrolling interval.
 	const scrollIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
@@ -265,13 +270,13 @@ export const DraxList = <T extends unknown>(
 				prevOffset = scrollPositionRef.current.y;
 			}
 			const jumpLength = containerLength * 0.2;
-			if (scrollStateRef.current === DraxListScrollStatus.Forward) {
+			if (scrollStateRef.current === AutoScrollDirection.Forward) {
 				const maxOffset = contentLength - containerLength;
 				if (prevOffset < maxOffset) {
 					const offset = Math.min(prevOffset + jumpLength, maxOffset);
 					flatList.scrollToOffset({ offset });
 				}
-			} else if (scrollStateRef.current === DraxListScrollStatus.Back) {
+			} else if (scrollStateRef.current === AutoScrollDirection.Back) {
 				if (prevOffset > 0) {
 					const offset = Math.max(prevOffset - jumpLength, 0);
 					flatList.scrollToOffset({ offset });
@@ -415,7 +420,7 @@ export const DraxList = <T extends unknown>(
 			receiver?: DraxEventViewData,
 		): DraxProtocolDragEndResponse => {
 			// Always stop auto-scroll on drag end.
-			scrollStateRef.current = DraxListScrollStatus.Inactive;
+			scrollStateRef.current = AutoScrollDirection.None;
 			stopScroll();
 
 			// Determine list indexes of dragged/received items, if any.
@@ -472,13 +477,13 @@ export const DraxList = <T extends unknown>(
 			// Next, see if we need to auto-scroll.
 			const ratio = horizontal ? relativePositionRatio.x : relativePositionRatio.y;
 			if (ratio > 0.1 && ratio < 0.9) {
-				scrollStateRef.current = DraxListScrollStatus.Inactive;
+				scrollStateRef.current = AutoScrollDirection.None;
 				stopScroll();
 			} else {
 				if (ratio >= 0.9) {
-					scrollStateRef.current = DraxListScrollStatus.Forward;
+					scrollStateRef.current = AutoScrollDirection.Forward;
 				} else if (ratio <= 0.1) {
-					scrollStateRef.current = DraxListScrollStatus.Back;
+					scrollStateRef.current = AutoScrollDirection.Back;
 				}
 				startScroll();
 			}
@@ -525,13 +530,19 @@ export const DraxList = <T extends unknown>(
 			onMonitorDragDrop={onMonitorDragDrop}
 			style={style}
 		>
-			<FlatList
-				renderItem={renderDraxViewItem}
-				onScroll={onScroll}
-				onContentSizeChange={onContentSizeChange}
-				data={reorderedData}
-				{...props}
-			/>
+			<DraxSubprovider parent={{ id, nodeHandleRef }}>
+				<FlatList
+					ref={(ref) => {
+						flatListRef.current = ref;
+						nodeHandleRef.current = ref && findNodeHandle(ref);
+					}}
+					renderItem={renderDraxViewItem}
+					onScroll={onScroll}
+					onContentSizeChange={onContentSizeChange}
+					data={reorderedData}
+					{...props}
+				/>
+			</DraxSubprovider>
 		</DraxView>
 	) : null;
 };

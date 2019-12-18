@@ -11,8 +11,12 @@ import {
 	Button,
 } from 'react-native';
 
-import { DraxProvider, DraxView } from './drax';
-import { DraxList } from './drax/DraxList';
+import {
+	DraxProvider,
+	DraxView,
+	DraxList,
+	DraxScrollView,
+} from './drax';
 
 interface Cargo {
 	boxName?: string;
@@ -361,7 +365,7 @@ const App = () => {
 							</View>
 						</DraxView>
 					</View> */}
-					{/* <DraxList
+					<DraxList
 						data={numData}
 						horizontal
 						renderItem={({ item }) => (
@@ -383,8 +387,8 @@ const App = () => {
 							setNumData(newData);
 						}}
 						keyExtractor={(item) => `${item}`}
-					/> */}
-					<DraxList
+					/>
+					{/* <DraxList
 						style={{ flex: 1 }}
 						data={alphaData}
 						renderItem={({ item }) => (
@@ -412,7 +416,38 @@ const App = () => {
 							);
 						}}
 						keyExtractor={(item) => item}
-					/>
+					/> */}
+					<DraxScrollView
+						style={{ backgroundColor: '#dddddd', width: 400, height: 400 }}
+						contentContainerStyle={{ width: 800, height: 800 }}
+						horizontal
+					>
+						<DraxView
+							style={styles.gridBlue}
+							receivingStyle={styles.gridReceive}
+							receptive
+						/>
+						<DraxView
+							style={styles.gridGreen}
+							receivingStyle={styles.gridReceive}
+							receptive
+						/>
+						<DraxView
+							style={styles.gridBlue}
+							receivingStyle={styles.gridReceive}
+							receptive
+						/>
+						<DraxView
+							style={styles.gridGreen}
+							receivingStyle={styles.gridReceive}
+							receptive
+						/>
+						<DraxView
+							style={styles.gridBlue}
+							receivingStyle={styles.gridReceive}
+							receptive
+						/>
+					</DraxScrollView>
 				</DraxProvider>
 			</SafeAreaView>
 		</>
@@ -422,6 +457,22 @@ const App = () => {
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
+	},
+	gridBlue: {
+		width: 100,
+		height: 100,
+		margin: 5,
+		backgroundColor: '#aaaaff',
+	},
+	gridGreen: {
+		width: 100,
+		height: 100,
+		margin: 5,
+		backgroundColor: '#aaffaa',
+	},
+	gridReceive: {
+		borderColor: 'red',
+		borderWidth: 2,
 	},
 	blueBox: {
 		margin: 12,

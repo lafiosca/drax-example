@@ -4,16 +4,20 @@ import {
 	useMemo,
 	useEffect,
 } from 'react';
-import { getType } from 'typesafe-actions';
+import { getType, createAction } from 'typesafe-actions';
 import isEqual from 'lodash.isequal';
 
-import { actions } from './actions';
 import {
 	DraxState,
 	DraxViewState,
 	DraxViewDragStatus,
 	DraxViewReceiveStatus,
 	DraxStateAction,
+	DraxStateActionCreators,
+	CreateViewStatePayload,
+	UpdateViewStatePayload,
+	DeleteViewStatePayload,
+	UpdateTrackingStatusPayload,
 } from '../types';
 
 /** Create the initial empty view state data for a newly registered view. */
@@ -46,6 +50,14 @@ const selectViewState = (state: DraxState, id: string | undefined) => (
 
 /** Selector for tracking status. */
 const selectTrackingStatus = (state: DraxState) => state.trackingStatus;
+
+/** Collection of Drax action creators */
+export const actions: DraxStateActionCreators = {
+	createViewState: createAction('createViewState')<CreateViewStatePayload>(),
+	updateViewState: createAction('updateViewState')<UpdateViewStatePayload>(),
+	deleteViewState: createAction('deleteViewState')<DeleteViewStatePayload>(),
+	updateTrackingStatus: createAction('updateTrackingStatus')<UpdateTrackingStatusPayload>(),
+};
 
 /** The DraxState reducer. */
 const reducer = (state: DraxState, action: DraxStateAction): DraxState => {
