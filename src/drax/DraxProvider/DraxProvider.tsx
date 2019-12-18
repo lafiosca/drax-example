@@ -2,6 +2,7 @@ import React, {
 	FunctionComponent,
 	useCallback,
 	ReactNodeArray,
+	useMemo,
 } from 'react';
 import { View, StyleSheet, Animated } from 'react-native';
 import { State } from 'react-native-gesture-handler';
@@ -629,7 +630,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		],
 	);
 
-	const value: DraxContextValue = {
+	const contextValue: DraxContextValue = {
 		getViewState,
 		getTrackingStatus,
 		registerView,
@@ -664,7 +665,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 	});
 
 	return (
-		<DraxContext.Provider value={value}>
+		<DraxContext.Provider value={contextValue}>
 			{children}
 			<View
 				style={StyleSheet.absoluteFill}

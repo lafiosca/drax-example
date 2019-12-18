@@ -28,8 +28,8 @@ const App = () => {
 	const scrollRef = useRef<ScrollView>(null);
 	const flatRef = useRef<FlatList<string>>(null);
 	const [numData, setNumData] = useState([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-	const [alphaData, setAlphaData] = useState(['A', 'B', 'C']);
-	// const [alphaData, setAlphaData] = useState(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R']);
+	// const [alphaData, setAlphaData] = useState(['A', 'B', 'C']);
+	const [alphaData, setAlphaData] = useState(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R']);
 	const measureRef = (name: string, ref: RefObject<View>) => {
 		ref.current?.measure((x, y, width, height, pageX, pageY) => {
 			console.log(`${name} measure: ${JSON.stringify({ x, y, width, height, pageX, pageY }, null, 2)}`);
@@ -284,8 +284,8 @@ const App = () => {
 									event.dragged.payload.letter ?? event.dragged.payload.boxName ?? '?',
 								]);
 							}}
-							dragReleaseAnimationDelay={500}
-							dragReleaseAnimationDuration={1000}
+							snapbackDelay={500}
+							snapbackDuration={1000}
 							payload={{ boxName: 'green' }}
 						>
 							<Text>draggable and receptive</Text>

@@ -13,7 +13,6 @@ import {
 	NativeScrollEvent,
 	NativeSyntheticEvent,
 	FlatList,
-	findNodeHandle,
 	Animated,
 } from 'react-native';
 import uuid from 'uuid/v4';
@@ -61,9 +60,6 @@ export const DraxList = <T extends unknown>(
 
 	// FlatList, used for scrolling.
 	const flatListRef = useRef<FlatList<T> | null>(null);
-
-	// FlatList node handle, used for measuring children.
-	const nodeHandleRef = useRef<number | null>(null);
 
 	// Container view measurements, for scrolling by percentage.
 	const containerMeasurementsRef = useRef<DraxViewMeasurements | undefined>(undefined);
@@ -209,14 +205,12 @@ export const DraxList = <T extends unknown>(
 					dragReleasedStyle={{ opacity: 0.5 }}
 					hoverStyle={{ backgroundColor: 'blue' }}
 					hoverDraggingStyle={{ backgroundColor: 'red' }}
-					parent={{ id, nodeHandleRef }}
 				>
 					{renderItem(info)}
 				</DraxView>
 			);
 		},
 		[
-			id,
 			originalIndexes,
 			getShiftTransform,
 			setDraggedItem,
@@ -532,10 +526,6 @@ export const DraxList = <T extends unknown>(
 			style={style}
 		>
 			<FlatList
-				ref={(ref) => {
-					flatListRef.current = ref;
-					nodeHandleRef.current = ref && findNodeHandle(ref);
-				}}
 				renderItem={renderDraxViewItem}
 				onScroll={onScroll}
 				onContentSizeChange={onContentSizeChange}

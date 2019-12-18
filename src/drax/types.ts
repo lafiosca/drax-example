@@ -473,14 +473,32 @@ export interface DraxRegistry {
 
 /** Context value used internally by Drax provider */
 export interface DraxContextValue {
+	/** Get a Drax view state by view id, if it exists */
 	getViewState: (id: string) => DraxViewState | undefined;
+
+	/** Get current Drax tracking status */
 	getTrackingStatus: () => DraxTrackingStatus;
+
+	/** Register a Drax view */
 	registerView: (payload: RegisterViewPayload) => void;
+
+	/** Unregister a Drax view */
 	unregisterView: (payload: UnregisterViewPayload) => void;
+
+	/** Update protocol for a registered Drax view */
 	updateViewProtocol: (payload: UpdateViewProtocolPayload) => void;
+
+	/** Update view measurements for a registered Drax view */
 	updateViewMeasurements: (payload: UpdateViewMeasurementsPayload) => void;
+
+	/** Handle gesture state change for a registered Drax view */
 	handleGestureStateChange: (id: string, event: DraxGestureStateChangeEvent) => void;
+
+	/** Handle gesture event for a registered Drax view */
 	handleGestureEvent: (id: string, event: DraxGestureEvent) => void;
+
+	/** Parent Drax view for all views under this context, when nesting */
+	parent?: DraxViewParent;
 }
 
 /** Type workaround for lack of Animated.View type, used in DraxView */
@@ -491,6 +509,12 @@ export interface AnimatedViewRefType {
 /** Optional props that can be passed to a DraxProvider to modify its behavior */
 export interface DraxProviderProps {
 	debug?: boolean;
+}
+
+/** Props that are passed to a DraxSubprovider, used internally for nesting views */
+export interface DraxSubproviderProps {
+	/** Parent Drax view for all views under this subcontext, when nesting */
+	parent: DraxViewParent;
 }
 
 /** Methods provided by a DraxView when registered externally */

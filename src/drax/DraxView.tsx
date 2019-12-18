@@ -7,7 +7,7 @@ import React, {
 	useCallback,
 	useMemo,
 } from 'react';
-import { Animated } from 'react-native';
+import { Animated, findNodeHandle, View } from 'react-native';
 import {
 	LongPressGestureHandlerStateChangeEvent,
 	LongPressGestureHandler,
@@ -29,6 +29,7 @@ import {
 	DraxViewMeasurementHandler,
 } from './types';
 import { defaultLongPressDelay } from './params';
+import { DraxSubprovider } from './DraxSubprovider';
 
 export const DraxView = (
 	{
@@ -73,11 +74,11 @@ export const DraxView = (
 		otherDraggingWithoutReceiverStyle,
 		registration,
 		onMeasure,
-		parent,
 		scrollPositionRef,
 		children,
 		longPressDelay = defaultLongPressDelay,
 		id: idProp,
+		parent: parentProp,
 		draggable: draggableProp,
 		receptive: receptiveProp,
 		monitoring: monitoringProp,
@@ -113,17 +114,18 @@ export const DraxView = (
 		|| !!onMonitorDragDrop
 	);
 
-	// The parent Drax view id, if it exists.
-	const parentId = parent && parent.id;
-
 	// The unique identifer for this view, initialized below.
 	const [id, setId] = useState('');
 
-	// The underlying Animated.View, for measuring.
-	const viewRef = useRef<AnimatedViewRefType>(null);
+	// The underlying View, for measuring.
+	const viewRef = useRef<View | null>(null);
+
+	// The underlying View node handle, used for subprovider nesting.
+	const nodeHandleRef = useRef<number | null>(null);
 
 	// This view's measurements, for reference.
 	const measurementsRef = useRef<DraxViewMeasurements | undefined>(undefined);
+
 
 	// Connect with Drax.
 	const {
@@ -135,7 +137,12 @@ export const DraxView = (
 		updateViewMeasurements,
 		handleGestureEvent,
 		handleGestureStateChange,
+		parent: contextParent,
 	} = useDrax();
+
+	// Identify parent Drax view (if any) from context or prop override.
+	const parent = parentProp ?? contextParent;
+	const parentId = parent && parent.id;
 
 	// Initialize id.
 	useEffect(
@@ -365,25 +372,27 @@ export const DraxView = (
 	// optional measurement handler on demand.
 	const measureWithHandler = useCallback(
 		(measurementHandler?: DraxViewMeasurementHandler) => {
-			const view = viewRef.current?.getNode();
-			const measureCallback = measurementHandler
-				? buildMeasureCallback(measurementHandler)
-				: updateMeasurements;
-			if (parent) {
-				const nodeHandle = parent.nodeHandleRef.current;
-				if (nodeHandle) {
-					view?.measureLayout(
-						nodeHandle,
-						measureCallback,
-						() => {
-							console.log('Failed to measure drax view in relation to parent');
-						},
-					);
+			const view = viewRef.current;
+			if (view) {
+				const measureCallback = measurementHandler
+					? buildMeasureCallback(measurementHandler)
+					: updateMeasurements;
+				if (parent) {
+					const nodeHandle = parent.nodeHandleRef.current;
+					if (nodeHandle) {
+						view.measureLayout(
+							nodeHandle,
+							measureCallback,
+							() => {
+								console.log('Failed to measure drax view in relation to parent');
+							},
+						);
+					} else {
+						console.log('No parent nodeHandle to measure drax view in relation to');
+					}
 				} else {
-					console.log('No parent nodeHandle to measure drax view in relation to');
+					view.measureInWindow(measureCallback);
 				}
-			} else {
-				viewRef.current?.getNode().measureInWindow(measureCallback);
 			}
 		},
 		[parent, buildMeasureCallback, updateMeasurements],
@@ -494,12 +503,18 @@ export const DraxView = (
 		>
 			<Animated.View
 				{...props}
-				ref={viewRef}
+				ref={(ref: AnimatedViewRefType | null) => {
+					const view = ref && ref.getNode();
+					viewRef.current = view;
+					nodeHandleRef.current = view && findNodeHandle(view);
+				}}
 				style={styles}
 				onLayout={onLayout}
 				collapsable={false}
 			>
-				{children}
+				<DraxSubprovider parent={{ id, nodeHandleRef }}>
+					{children}
+				</DraxSubprovider>
 			</Animated.View>
 		</LongPressGestureHandler>
 	);
