@@ -32,7 +32,6 @@ import {
 
 export const DraxScrollView = ({
 	children,
-	style,
 	onScroll: onScrollProp,
 	onContentSizeChange: onContentSizeChangeProp,
 	scrollEventThrottle = defaultScrollEventThrottle,
@@ -155,10 +154,9 @@ export const DraxScrollView = ({
 	// Clear auto-scroll direction and stop the auto-scrolling interval.
 	const resetScroll = useCallback(
 		() => {
-			autoScrollStateRef.current = {
-				x: AutoScrollDirection.None,
-				y: AutoScrollDirection.None,
-			};
+			const autoScrollState = autoScrollStateRef.current;
+			autoScrollState.x = AutoScrollDirection.None;
+			autoScrollState.y = AutoScrollDirection.None;
 			stopScroll();
 		},
 		[stopScroll],
@@ -236,7 +234,6 @@ export const DraxScrollView = ({
 	return id ? (
 		<DraxView
 			id={id}
-			style={style}
 			scrollPositionRef={scrollPositionRef}
 			onMeasure={onMeasureContainer}
 			onMonitorDragOver={onMonitorDragOver}

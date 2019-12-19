@@ -430,9 +430,12 @@ const App = () => {
 						<DraxView
 							style={styles.gridGreen}
 							receivingStyle={styles.gridReceive}
+							hoverStyle={styles.gridHover}
 							receptive
 							draggable
-						/>
+						>
+							<Text>test</Text>
+						</DraxView>
 						<DraxView
 							style={styles.gridBlue}
 							receivingStyle={styles.gridReceive}
@@ -441,6 +444,7 @@ const App = () => {
 						<DraxView
 							style={styles.gridGreen}
 							receivingStyle={styles.gridReceive}
+							hoverStyle={styles.gridHover}
 							receptive
 							draggable
 						/>
@@ -470,7 +474,11 @@ const styles = StyleSheet.create({
 		width: 100,
 		height: 100,
 		margin: 5,
+		padding: 10,
 		backgroundColor: '#aaffaa',
+	},
+	gridHover: {
+		margin: 0,
 	},
 	gridReceive: {
 		borderColor: 'red',
