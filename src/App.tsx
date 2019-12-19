@@ -431,6 +431,7 @@ const App = () => {
 							style={styles.gridGreen}
 							receivingStyle={styles.gridReceive}
 							receptive
+							draggable
 						/>
 						<DraxView
 							style={styles.gridBlue}
@@ -441,6 +442,7 @@ const App = () => {
 							style={styles.gridGreen}
 							receivingStyle={styles.gridReceive}
 							receptive
+							draggable
 						/>
 						<DraxView
 							style={styles.gridBlue}

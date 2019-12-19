@@ -627,30 +627,47 @@ export interface DraxViewProps extends DraxProtocolProps, Omit<ViewProps, 'style
 	longPressDelay?: number;
 }
 
+/** Auto-scroll direction used internally by DraxScrollView and DraxList */
+export enum AutoScrollDirection {
+	/** Auto-scrolling back toward the beginning of list */
+	Back = -1,
+	/** Not auto-scrolling */
+	None = 0,
+	/** Auto-scrolling forward toward the end of the list */
+	Forward = 1,
+}
+
+/** Auto-scroll state used internally by DraxScrollView */
+export interface AutoScrollState {
+	/* Auto-scroll direction for the x-axis */
+	x: AutoScrollDirection;
+	/* Auto-scroll direction for the y-axis */
+	y: AutoScrollDirection;
+}
+
+/** Props for auto-scroll options, used by DraxScrollView and DraxList */
+export interface DraxAutoScrollProps {
+	/* How often auto-scroll should jump, in milliseconds */
+	autoScrollIntervalLength?: number;
+	/* How far auto-scroll should jump each time, as a fraction of container dimension */
+	autoScrollJumpRatio?: number;
+	/* The maximum threshold for a drag position to trigger auto-scroll back, as a fraction of container dimension */
+	autoScrollBackThreshold?: number;
+	/* The minimum threshold for a drag position to trigger auto-scroll forward, as a fraction of container dimension */
+	autoScrollForwardThreshold?: number;
+}
+
 /** Props for a DraxScrollView; extends standard ScrollView props */
-export interface DraxScrollViewProps extends ScrollViewProperties {
+export interface DraxScrollViewProps extends ScrollViewProperties, DraxAutoScrollProps {
 	/** Unique drax view id, auto-generated if omitted */
 	id?: string;
 }
 
-/** Props for a DraxListProps; extends standard FlatList props */
-export interface DraxListProps<TItem> extends FlatListProperties<TItem> {
+/** Props for a DraxList; extends standard FlatList props */
+export interface DraxListProps<TItem> extends FlatListProperties<TItem>, DraxAutoScrollProps {
 	/** Unique drax view id, auto-generated if omitted */
 	id?: string;
 
 	/** Callback handler for when a list item is moved */
 	onListItemMoved?: (fromIndex: number, toIndex: number) => void;
-}
-
-/** Auto-scroll direction used internally by DraxScrollView and DraxList */
-export enum AutoScrollDirection {
-	Back = -1,
-	None = 0,
-	Forward = 1,
-}
-
-/** Auto-scroll state used internally by DraxScrollView and DraxList */
-export interface AutoScrollState {
-	x: AutoScrollDirection;
-	y: AutoScrollDirection;
 }

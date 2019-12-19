@@ -16,8 +16,10 @@ import {
 	Animated,
 	findNodeHandle,
 } from 'react-native';
-import uuid from 'uuid/v4';
 
+import { DraxView } from './DraxView';
+import { DraxSubprovider } from './DraxSubprovider';
+import { useDraxId } from './hooks';
 import {
 	DraxListProps,
 	DraxMonitorEventData,
@@ -31,8 +33,6 @@ import {
 	DraxProtocolDragEndResponse,
 	DraxSnapbackTargetPreset,
 } from './types';
-import { DraxView } from './DraxView';
-import { DraxSubprovider } from './DraxSubprovider';
 
 interface Shift {
 	targetValue: number;
@@ -57,8 +57,8 @@ export const DraxList = <T extends unknown>(
 	const { horizontal = false } = props;
 	const itemCount = data?.length ?? 0;
 
-	// The unique identifer for this list, initialized below.
-	const [id, setId] = useState('');
+	// The unique identifer for this list's Drax view, initialized below.
+	const id = useDraxId(idProp);
 
 	// FlatList, used for scrolling.
 	const flatListRef = useRef<FlatList<T> | null>(null);
@@ -95,20 +95,6 @@ export const DraxList = <T extends unknown>(
 
 	// Maintain cache of reordered list indexes until data updates.
 	const [originalIndexes, setOriginalIndexes] = useState<number[]>([]);
-
-	// Initialize id.
-	useEffect(
-		() => {
-			if (idProp) {
-				if (id !== idProp) {
-					setId(idProp);
-				}
-			} else if (!id) {
-				setId(uuid());
-			}
-		},
-		[id, idProp],
-	);
 
 	// Adjust measurements and shift value arrays as item count changes.
 	useEffect(
@@ -240,6 +226,15 @@ export const DraxList = <T extends unknown>(
 		[],
 	);
 
+	// Set FlatList and node handle refs.
+	const setFlatListRefs = useCallback(
+		(ref) => {
+			flatListRef.current = ref;
+			nodeHandleRef.current = ref && findNodeHandle(ref);
+		},
+		[],
+	);
+
 	// Update tracked scroll position when list is scrolled.
 	const onScroll = useCallback(
 		({ nativeEvent: { contentOffset } }: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -270,17 +265,20 @@ export const DraxList = <T extends unknown>(
 				prevOffset = scrollPositionRef.current.y;
 			}
 			const jumpLength = containerLength * 0.2;
+			let offset: number | undefined;
 			if (scrollStateRef.current === AutoScrollDirection.Forward) {
 				const maxOffset = contentLength - containerLength;
 				if (prevOffset < maxOffset) {
-					const offset = Math.min(prevOffset + jumpLength, maxOffset);
-					flatList.scrollToOffset({ offset });
+					offset = Math.min(prevOffset + jumpLength, maxOffset);
 				}
 			} else if (scrollStateRef.current === AutoScrollDirection.Back) {
 				if (prevOffset > 0) {
-					const offset = Math.max(prevOffset - jumpLength, 0);
-					flatList.scrollToOffset({ offset });
+					offset = Math.max(prevOffset - jumpLength, 0);
 				}
+			}
+			if (offset !== undefined) {
+				flatList.scrollToOffset({ offset });
+				flatList.flashScrollIndicators();
 			}
 		},
 		[horizontal],
@@ -522,20 +520,17 @@ export const DraxList = <T extends unknown>(
 	return id ? (
 		<DraxView
 			id={id}
+			style={style}
 			scrollPositionRef={scrollPositionRef}
 			onMeasure={onMeasureContainer}
 			onMonitorDragOver={onMonitorDragOver}
 			onMonitorDragExit={onMonitorDragExit}
 			onMonitorDragEnd={onMonitorDragEnd}
 			onMonitorDragDrop={onMonitorDragDrop}
-			style={style}
 		>
 			<DraxSubprovider parent={{ id, nodeHandleRef }}>
 				<FlatList
-					ref={(ref) => {
-						flatListRef.current = ref;
-						nodeHandleRef.current = ref && findNodeHandle(ref);
-					}}
+					ref={setFlatListRefs}
 					renderItem={renderDraxViewItem}
 					onScroll={onScroll}
 					onContentSizeChange={onContentSizeChange}
