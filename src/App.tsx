@@ -418,7 +418,7 @@ const App = () => {
 						keyExtractor={(item) => item}
 					/> */}
 					<DraxScrollView
-						style={{ backgroundColor: '#dddddd', width: 400, height: 400 }}
+						style={{ backgroundColor: '#dddddd', width: '100%', height: 400 }}
 						contentContainerStyle={{ width: 800, height: 800 }}
 						horizontal
 					>
