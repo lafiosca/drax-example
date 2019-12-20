@@ -534,9 +534,7 @@ const App = () => {
 						</DraxView>
 						<DraxView
 							style={styles.gridGreen}
-							draggingStyle={styles.gridHover}
 							receivingStyle={styles.gridReceive}
-							noHover
 							receptive
 							draggable
 						/>

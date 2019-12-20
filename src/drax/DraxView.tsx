@@ -223,7 +223,7 @@ export const DraxView = (
 			const transform = hoverPosition.getTranslateTransform() as AnimatedTransform;
 			hoverStyles.push({ transform });
 
-			// Remove any positioning styles.
+			// Remove any positioning/sizing styles.
 			const {
 				margin,
 				marginHorizontal,
@@ -238,6 +238,11 @@ export const DraxView = (
 				right,
 				top,
 				bottom,
+				flex,
+				flexBasis,
+				flexDirection,
+				flexGrow,
+				flexShrink,
 				...combinedHoverStyle
 			} = StyleSheet.flatten(hoverStyles);
 
