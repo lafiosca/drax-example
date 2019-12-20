@@ -15,6 +15,7 @@ import {
 	FlatList,
 	Animated,
 	findNodeHandle,
+	StyleSheet,
 } from 'react-native';
 
 import { DraxView } from './DraxView';
@@ -44,18 +45,32 @@ interface ListItemPayload {
 	originalIndex: number;
 }
 
+const defaultStyles = StyleSheet.create({
+	draggingStyle: { opacity: 0 },
+	dragReleasedStyle: { opacity: 0.5 },
+});
+
 export const DraxList = <T extends unknown>(
 	{
-		renderItem,
 		data,
 		style,
+		itemStyles,
+		renderItemContent,
+		renderItemHoverContent,
 		onListItemMoved,
 		id: idProp,
+		reorderable: reorderableProp,
 		...props
 	}: PropsWithChildren<DraxListProps<T>>,
 ): ReactElement | null => {
+	// Copy the value of the horizontal property for internal use.
 	const { horizontal = false } = props;
+
+	// Get the item count for internal use.
 	const itemCount = data?.length ?? 0;
+
+	// Set a sensible default for reorderable prop.
+	const reorderable = reorderableProp ?? (onListItemMoved !== undefined);
 
 	// The unique identifer for this list's Drax view, initialized below.
 	const id = useDraxId(idProp);
@@ -169,36 +184,40 @@ export const DraxList = <T extends unknown>(
 	);
 
 	// Drax view renderItem wrapper.
-	const renderDraxViewItem = useCallback(
+	const renderItem = useCallback(
 		(info: ListRenderItemInfo<T>) => {
 			const { index } = info;
 			const originalIndex = originalIndexes[index];
-
+			const {
+				style,
+				draggingStyle = defaultStyles.draggingStyle,
+				dragReleasedStyle = defaultStyles.dragReleasedStyle,
+				...otherStyleProps
+			} = itemStyles ?? {};
 			return (
 				<DraxView
-					style={{ transform: getShiftTransform(originalIndex) }}
+					style={[style, { transform: getShiftTransform(originalIndex) }]}
+					draggingStyle={draggingStyle}
+					dragReleasedStyle={dragReleasedStyle}
+					{...otherStyleProps}
 					payload={{ index, originalIndex }}
 					onDragStart={() => setDraggedItem(originalIndex)}
 					onDragEnd={resetDraggedItem}
 					onDragDrop={resetDraggedItem}
 					onMeasure={(measurements) => {
-						console.log(`measuring [${index}, ${originalIndex}]: (${measurements?.x}, ${measurements?.y})`);
+						// console.log(`measuring [${index}, ${originalIndex}]: (${measurements?.x}, ${measurements?.y})`);
 						itemMeasurementsRef.current[originalIndex] = measurements;
 					}}
 					registration={(registration) => {
 						if (registration) {
-							console.log(`registering [${index}, ${originalIndex}], ${registration.id}`);
+							// console.log(`registering [${index}, ${originalIndex}], ${registration.id}`);
 							registrationsRef.current[originalIndex] = registration;
 							registration.measure();
 						}
 					}}
-					draggingStyle={{ opacity: 0.1, backgroundColor: 'magenta' }}
-					dragReleasedStyle={{ opacity: 0.5 }}
-					hoverStyle={{ backgroundColor: 'blue' }}
-					hoverDraggingStyle={{ backgroundColor: 'red' }}
-				>
-					{renderItem(info)}
-				</DraxView>
+					renderContent={(props) => renderItemContent(info, props)}
+					renderHoverContent={renderItemHoverContent && ((props) => renderItemHoverContent(info, props))}
+				/>
 			);
 		},
 		[
@@ -206,7 +225,9 @@ export const DraxList = <T extends unknown>(
 			getShiftTransform,
 			setDraggedItem,
 			resetDraggedItem,
-			renderItem,
+			itemStyles,
+			renderItemContent,
+			renderItemHoverContent,
 		],
 	);
 
@@ -421,35 +442,38 @@ export const DraxList = <T extends unknown>(
 			scrollStateRef.current = AutoScrollDirection.None;
 			stopScroll();
 
-			// Determine list indexes of dragged/received items, if any.
-			const fromPayload = dragged && (dragged.parentId === id)
-				? (dragged.payload as ListItemPayload)
-				: undefined;
-			const toPayload = (fromPayload !== undefined && receiver && receiver.parentId === id)
-				? (receiver.payload as ListItemPayload)
-				: undefined;
+			// If the list is reorderable, handle shifts and reordering.
+			if (reorderable) {
+				// Determine list indexes of dragged/received items, if any.
+				const fromPayload = dragged && (dragged.parentId === id)
+					? (dragged.payload as ListItemPayload)
+					: undefined;
+				const toPayload = (fromPayload !== undefined && receiver && receiver.parentId === id)
+					? (receiver.payload as ListItemPayload)
+					: undefined;
 
-			if (fromPayload !== undefined) {
-				// If dragged item was ours, reset shifts.
-				resetShifts();
-				if (toPayload !== undefined) {
-					// If dragged item and received item were ours, reorder data.
-					console.log(`moving ${fromPayload.index} -> ${toPayload.index}`);
-					const snapbackTarget = calculateSnapbackTarget(fromPayload, toPayload);
-					const { index: fromIndex, originalIndex: fromOriginalIndex } = fromPayload;
-					const { index: toIndex, originalIndex: toOriginalIndex } = toPayload;
-					if (data) {
-						const newOriginalIndexes = originalIndexes.slice();
-						newOriginalIndexes.splice(toIndex, 0, newOriginalIndexes.splice(fromIndex, 1)[0]);
-						setOriginalIndexes(newOriginalIndexes);
-						onListItemMoved?.({
-							fromIndex,
-							toIndex,
-							fromItem: data[fromOriginalIndex],
-							toItem: data[toOriginalIndex],
-						});
+				if (fromPayload !== undefined) {
+					// If dragged item was ours, reset shifts.
+					resetShifts();
+					if (toPayload !== undefined) {
+						// If dragged item and received item were ours, reorder data.
+						console.log(`moving ${fromPayload.index} -> ${toPayload.index}`);
+						const snapbackTarget = calculateSnapbackTarget(fromPayload, toPayload);
+						const { index: fromIndex, originalIndex: fromOriginalIndex } = fromPayload;
+						const { index: toIndex, originalIndex: toOriginalIndex } = toPayload;
+						if (data) {
+							const newOriginalIndexes = originalIndexes.slice();
+							newOriginalIndexes.splice(toIndex, 0, newOriginalIndexes.splice(fromIndex, 1)[0]);
+							setOriginalIndexes(newOriginalIndexes);
+							onListItemMoved?.({
+								fromIndex,
+								toIndex,
+								fromItem: data[fromOriginalIndex],
+								toItem: data[toOriginalIndex],
+							});
+						}
+						return snapbackTarget;
 					}
-					return snapbackTarget;
 				}
 			}
 
@@ -457,6 +481,7 @@ export const DraxList = <T extends unknown>(
 		},
 		[
 			id,
+			data,
 			stopScroll,
 			resetShifts,
 			calculateSnapbackTarget,
@@ -469,7 +494,7 @@ export const DraxList = <T extends unknown>(
 	const onMonitorDragOver = useCallback(
 		({ dragged, receiver, relativePositionRatio }: DraxMonitorEventData) => {
 			// First, check if we need to shift items.
-			if (dragged.parentId === id) {
+			if (reorderable && dragged.parentId === id) {
 				// One of our list items is being dragged.
 				const fromPayload: ListItemPayload = dragged.payload;
 				// Find its current index in the list for the purpose of shifting.
@@ -495,6 +520,7 @@ export const DraxList = <T extends unknown>(
 		},
 		[
 			id,
+			reorderable,
 			updateShifts,
 			horizontal,
 			stopScroll,
@@ -537,12 +563,12 @@ export const DraxList = <T extends unknown>(
 		>
 			<DraxSubprovider parent={{ id, nodeHandleRef }}>
 				<FlatList
+					{...props}
 					ref={setFlatListRefs}
-					renderItem={renderDraxViewItem}
+					renderItem={renderItem}
 					onScroll={onScroll}
 					onContentSizeChange={onContentSizeChange}
 					data={reorderedData}
-					{...props}
 				/>
 			</DraxSubprovider>
 		</DraxView>

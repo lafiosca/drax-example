@@ -399,7 +399,14 @@ const App = () => {
 					<DraxList
 						style={{ flex: 1 }}
 						data={alphaData}
-						renderItem={({ item }) => (
+						itemStyles={{
+							style: {
+								width: 100,
+								borderColor: 'black',
+								borderWidth: 1,
+							},
+						}}
+						renderItemContent={({ item }) => (
 							<View
 								style={[
 									styles.bottomBox,
@@ -414,14 +421,9 @@ const App = () => {
 							</View>
 						)}
 						onListItemMoved={({ fromIndex, toIndex }) => {
-							setTimeout(
-								() => {
-									const newData = alphaData.slice();
-									newData.splice(toIndex, 0, newData.splice(fromIndex, 1)[0]);
-									setAlphaData(newData);
-								},
-								50,
-							);
+							const newData = alphaData.slice();
+							newData.splice(toIndex, 0, newData.splice(fromIndex, 1)[0]);
+							setAlphaData(newData);
 						}}
 						keyExtractor={(item) => item}
 					/>

@@ -2,11 +2,12 @@ import { RefObject, ReactNode } from 'react';
 import {
 	ViewProps,
 	Animated,
-	FlatListProperties,
+	FlatListProps,
 	ViewStyle,
 	StyleProp,
-	ScrollViewProperties,
+	ScrollViewProps,
 	View,
+	ListRenderItemInfo,
 } from 'react-native';
 import {
 	LongPressGestureHandlerStateChangeEvent,
@@ -544,7 +545,7 @@ export interface DraxProviderProps {
 
 /** Props that are passed to a DraxSubprovider, used internally for nesting views */
 export interface DraxSubproviderProps {
-	/** Drax parent view for all views under this subcontext, when nesting */
+	/** Drax parent view for all views under this subprovider, when nesting */
 	parent: DraxParentView;
 }
 
@@ -596,8 +597,8 @@ export interface DraxViewMeasurementHandler {
 	(measurements: DraxViewMeasurements | undefined): void
 }
 
-/** Props for a DraxView; combines protocol props and standard view props */
-export interface DraxViewProps extends DraxProtocolProps, Omit<ViewProps, 'style'> {
+/** Style-related props for a Drax view */
+export interface DraxViewStyleProps {
 	/** Custom style prop to allow animated values */
 	style?: AnimatedViewStyleProp;
 
@@ -645,12 +646,15 @@ export interface DraxViewProps extends DraxProtocolProps, Omit<ViewProps, 'style
 
 	/** Additional view style applied to this view while any other view is being dragged NOT over a receiver */
 	otherDraggingWithoutReceiverStyle?: AnimatedViewStyleProp;
+}
 
+/** Props for a DraxView; combines protocol props and standard view props */
+export interface DraxViewProps extends Omit<ViewProps, 'style'>, DraxProtocolProps, DraxViewStyleProps {
 	/** Custom render function for content of this view */
-	renderContent?: (props: DraxRenderContentProps, context: any) => ReactNode;
+	renderContent?: (props: DraxRenderContentProps) => ReactNode;
 
 	/** Custom render function for content of hovering copy of this view, defaults to renderContent */
-	renderHoverContent?: (props: DraxRenderHoverContentProps, context: any) => ReactNode;
+	renderHoverContent?: (props: DraxRenderHoverContentProps) => ReactNode;
 
 	/** If true, do not render hover view copies for this view when dragging */
 	noHover?: boolean;
@@ -708,7 +712,7 @@ export interface DraxAutoScrollProps {
 }
 
 /** Props for a DraxScrollView; extends standard ScrollView props */
-export interface DraxScrollViewProps extends ScrollViewProperties, DraxAutoScrollProps {
+export interface DraxScrollViewProps extends ScrollViewProps, DraxAutoScrollProps {
 	/** Unique drax view id, auto-generated if omitted */
 	id?: string;
 }
@@ -726,13 +730,22 @@ export interface DraxListOnListItemMovedEventData<TItem> {
 }
 
 /** Props for a DraxList; extends standard FlatList props */
-export interface DraxListProps<TItem> extends FlatListProperties<TItem>, DraxAutoScrollProps {
+export interface DraxListProps<TItem> extends Omit<FlatListProps<TItem>, 'renderItem'>, DraxAutoScrollProps {
 	/** Unique drax view id, auto-generated if omitted */
 	id?: string;
 
-	/** Can the list be reordered by dragging items? */
-	reorderable?: boolean;
+	/** Style props to apply to all DraxView items in the list */
+	itemStyles?: DraxViewStyleProps;
+
+	/** Render function for content of an item's DraxView */
+	renderItemContent: (info: ListRenderItemInfo<TItem>, props: DraxRenderContentProps) => ReactNode;
+
+	/** Render function for content of an item's hovering copy, defaults to renderItemContent */
+	renderItemHoverContent?: (info: ListRenderItemInfo<TItem>, props: DraxRenderHoverContentProps) => ReactNode;
 
 	/** Callback handler for when a list item is moved, if reorderable */
 	onListItemMoved?: (eventData: DraxListOnListItemMovedEventData<TItem>) => void;
+
+	/** Can the list be reordered by dragging items? Defaults to true if onListItemMoved is set. */
+	reorderable?: boolean;
 }
