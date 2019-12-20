@@ -316,20 +316,26 @@ const App = () => {
 							<Text style={styles.receivedText}>{`received: ${yellowReceived.join('-')}`}</Text>
 						</DraxView>
 						<View style={styles.bottomRow}>
-							<DraxView longPressDelay={0} dragPayload={{ letter: 'X' }}>
-								<View style={styles.bottomBox}>
-									<Text style={styles.bottomBoxText}>X</Text>
-								</View>
+							<DraxView
+								style={styles.bottomBox}
+								longPressDelay={0}
+								dragPayload={{ letter: 'X' }}
+							>
+								<Text style={styles.bottomBoxText}>X</Text>
 							</DraxView>
-							<DraxView longPressDelay={0} dragPayload={{ letter: 'Y' }}>
-								<View style={styles.bottomBox}>
-									<Text style={styles.bottomBoxText}>Y</Text>
-								</View>
+							<DraxView
+								style={styles.bottomBox}
+								longPressDelay={0}
+								dragPayload={{ letter: 'Y' }}
+							>
+								<Text style={styles.bottomBoxText}>Y</Text>
 							</DraxView>
-							<DraxView longPressDelay={0} dragPayload={{ letter: 'Z' }}>
-								<View style={styles.bottomBox}>
-									<Text style={styles.bottomBoxText}>Z</Text>
-								</View>
+							<DraxView
+								style={styles.bottomBox}
+								longPressDelay={0}
+								dragPayload={{ letter: 'Z' }}
+							>
+								<Text style={styles.bottomBoxText}>Z</Text>
 							</DraxView>
 						</View>
 					</ScrollView> */}
@@ -367,7 +373,7 @@ const App = () => {
 							</View>
 						</DraxView>
 					</View> */}
-					<DraxList
+					{/* <DraxList
 						data={numData}
 						horizontal
 						renderItem={({ item }) => (
@@ -389,8 +395,8 @@ const App = () => {
 							setNumData(newData);
 						}}
 						keyExtractor={(item) => `${item}`}
-					/>
-					{/* <DraxList
+					/> */}
+					<DraxList
 						style={{ flex: 1 }}
 						data={alphaData}
 						renderItem={({ item }) => (
@@ -407,7 +413,7 @@ const App = () => {
 								<Text style={styles.bottomBoxText}>{item}</Text>
 							</View>
 						)}
-						onListItemMoved={(fromIndex, toIndex) => {
+						onListItemMoved={({ fromIndex, toIndex }) => {
 							setTimeout(
 								() => {
 									const newData = alphaData.slice();
@@ -418,7 +424,7 @@ const App = () => {
 							);
 						}}
 						keyExtractor={(item) => item}
-					/> */}
+					/>
 					{/* <DraxScrollView
 						style={{ backgroundColor: '#dddddd', width: '100%', height: 400 }}
 						contentContainerStyle={{ width: 800, height: 800 }}
@@ -488,7 +494,7 @@ const App = () => {
 							draggable
 						/>
 					</DraxScrollView> */}
-					<View
+					{/* <View
 						style={{
 							backgroundColor: '#aaaaaa',
 							width: '100%',
@@ -538,7 +544,7 @@ const App = () => {
 							receptive
 							draggable
 						/>
-					</View>
+					</View> */}
 				</DraxProvider>
 			</SafeAreaView>
 		</>
