@@ -6,8 +6,14 @@ import React, {
 	useEffect,
 	useCallback,
 	useMemo,
+	ReactNode,
 } from 'react';
-import { Animated, View, findNodeHandle } from 'react-native';
+import {
+	Animated,
+	View,
+	StyleSheet,
+	findNodeHandle,
+} from 'react-native';
 import {
 	LongPressGestureHandlerStateChangeEvent,
 	LongPressGestureHandler,
@@ -19,17 +25,20 @@ import { useDrax } from './useDrax';
 import {
 	LongPressGestureHandlerGestureEvent,
 	DraxViewProps,
-	AnimatedViewRefType,
 	DraxViewDragStatus,
 	DraxViewReceiveStatus,
 	DraxGestureEvent,
-	DraxHoverViewProps,
-	DraxViewState,
 	DraxViewMeasurements,
 	DraxViewMeasurementHandler,
+	DraxRenderContentProps,
+	DraxInternalRenderHoverViewProps,
+	AnimatedViewRefType,
+	AnimatedTransform,
+	AnimatedViewStyleProp,
 } from './types';
 import { defaultLongPressDelay } from './params';
 import { DraxSubprovider } from './DraxSubprovider';
+import { extractDimensions } from './math';
 
 export const DraxView = (
 	{
@@ -72,10 +81,13 @@ export const DraxView = (
 		otherDraggingStyle,
 		otherDraggingWithReceiverStyle,
 		otherDraggingWithoutReceiverStyle,
+		renderContent,
+		renderHoverContent,
 		registration,
 		onMeasure,
 		scrollPositionRef,
 		children,
+		noHover = false,
 		isParent = false,
 		longPressDelay = defaultLongPressDelay,
 		id: idProp,
@@ -85,6 +97,7 @@ export const DraxView = (
 		monitoring: monitoringProp,
 		...props
 	}: PropsWithChildren<DraxViewProps>,
+	context: any,
 ): ReactElement => {
 	// Coalesce protocol props into capabilities.
 	const draggable = draggableProp ?? (
@@ -179,21 +192,25 @@ export const DraxView = (
 		],
 	);
 
-	const getHoverStyles = useCallback(
-		({ dragStatus, draggingOverReceiver }: DraxViewState) => {
-			const hoverStyles = [];
-			const measurements = measurementsRef.current;
-			if (measurements) {
-				hoverStyles.push({
-					width: measurements.width,
-					height: measurements.height,
-				});
-			}
-			hoverStyles.push(style);
-			hoverStyles.push(hoverStyle);
+	// Combine hover styles for given internal render props.
+	const getCombinedHoverStyle = useCallback(
+		({
+			viewState: { dragStatus },
+			trackingStatus: { receiving: anyReceiving },
+			hoverPosition,
+			dimensions,
+		}: DraxInternalRenderHoverViewProps) => {
+			// Start with base style, calculated dimensions, and hover base style.
+			const hoverStyles: AnimatedViewStyleProp[] = [
+				style,
+				dimensions,
+				hoverStyle,
+			];
+
+			// Apply style style overrides based on state.
 			if (dragStatus === DraxViewDragStatus.Dragging) {
 				hoverStyles.push(hoverDraggingStyle);
-				if (draggingOverReceiver) {
+				if (anyReceiving) {
 					hoverStyles.push(hoverDraggingWithReceiverStyle);
 				} else {
 					hoverStyles.push(hoverDraggingWithoutReceiverStyle);
@@ -201,7 +218,30 @@ export const DraxView = (
 			} else if (dragStatus === DraxViewDragStatus.Released) {
 				hoverStyles.push(hoverDragReleasedStyle);
 			}
-			return hoverStyles;
+
+			// Apply hover transform.
+			const transform = hoverPosition.getTranslateTransform() as AnimatedTransform;
+			hoverStyles.push({ transform });
+
+			// Remove any positioning styles.
+			const {
+				margin,
+				marginHorizontal,
+				marginVertical,
+				marginLeft,
+				marginRight,
+				marginTop,
+				marginBottom,
+				marginStart,
+				marginEnd,
+				left,
+				right,
+				top,
+				bottom,
+				...combinedHoverStyle
+			} = StyleSheet.flatten(hoverStyles);
+
+			return combinedHoverStyle;
 		},
 		[
 			style,
@@ -213,25 +253,46 @@ export const DraxView = (
 		],
 	);
 
-	const renderHoverView = useCallback(
-		({ viewState }: DraxHoverViewProps) => {
-			if (!draggable) {
-				return undefined;
-			}
+	// Internal render function for hover views, used in protocol by provider.
+	const internalRenderHoverView = useMemo(
+		() => ((draggable && !noHover)
+			? (internalProps: DraxInternalRenderHoverViewProps): ReactNode => {
+				let content: ReactNode;
+				const render = renderHoverContent ?? renderContent;
 
-			return (
-				<Animated.View
-					{...props}
-					style={getHoverStyles(viewState)}
-				>
-					{children}
-				</Animated.View>
-			);
-		},
+				if (render) {
+					const renderProps = {
+						children,
+						hover: true,
+						viewState: internalProps.viewState,
+						trackingStatus: internalProps.trackingStatus,
+						dimensions: internalProps.dimensions,
+					};
+					content = render(renderProps, context);
+				} else {
+					content = children;
+				}
+
+				return (
+					<Animated.View
+						{...props}
+						key={internalProps.key}
+						style={getCombinedHoverStyle(internalProps)}
+					>
+						{content}
+					</Animated.View>
+				);
+			}
+			: undefined
+		),
 		[
 			draggable,
+			noHover,
+			renderHoverContent,
+			renderContent,
+			getCombinedHoverStyle,
+			context,
 			props,
-			getHoverStyles,
 			children,
 		],
 	);
@@ -263,7 +324,7 @@ export const DraxView = (
 						animateSnapback,
 						snapbackDelay,
 						snapbackDuration,
-						renderHoverView,
+						internalRenderHoverView,
 						draggable,
 						receptive,
 						monitoring,
@@ -303,7 +364,7 @@ export const DraxView = (
 			draggable,
 			receptive,
 			monitoring,
-			renderHoverView,
+			internalRenderHoverView,
 		],
 	);
 
@@ -422,28 +483,46 @@ export const DraxView = (
 		[id, registration, measureWithHandler],
 	);
 
-	// useEffect(
-	// 	() => {
-	// 		console.log('throttle function replaced');
-	// 	},
-	// 	[throttledHandleGestureEvent],
-	// );
+	// Get the render-related state for rendering.
+	const viewState = getViewState(id);
+	const trackingStatus = getTrackingStatus();
 
-	const styles = useMemo(
+	// Get full render props for non-hovering view content.
+	const getRenderContentProps = useCallback(
+		(): DraxRenderContentProps => {
+			const measurements = measurementsRef.current;
+			const dimensions = measurements && extractDimensions(measurements);
+			return {
+				viewState,
+				trackingStatus,
+				children,
+				dimensions,
+				hover: false,
+			};
+		},
+		[
+			viewState,
+			trackingStatus,
+			children,
+		],
+	);
+
+	// Combined style for current render-related state.
+	const combinedStyle = useMemo(
 		() => {
-			const styles = [style];
-
 			const {
 				dragStatus = DraxViewDragStatus.Inactive,
 				receiveStatus = DraxViewReceiveStatus.Inactive,
-			} = getViewState(id) ?? {};
-
+			} = viewState ?? {};
 			const {
 				dragging: anyDragging,
 				receiving: anyReceiving,
-			} = getTrackingStatus();
+			} = trackingStatus;
 
-			// First apply style overrides for drag state.
+			// Start with base style.
+			const styles = [style];
+
+			// Apply style overrides for drag state.
 			if (dragStatus === DraxViewDragStatus.Dragging) {
 				styles.push(draggingStyle);
 				if (anyReceiving) {
@@ -465,19 +544,18 @@ export const DraxView = (
 				}
 			}
 
-			// Next apply style overrides for receiving state.
+			// Apply style overrides for receiving state.
 			if (receiveStatus === DraxViewReceiveStatus.Receiving) {
 				styles.push(receivingStyle);
 			} else {
 				styles.push(receiverInactiveStyle);
 			}
 
-			return styles;
+			return StyleSheet.flatten(styles);
 		},
 		[
-			id,
-			getViewState,
-			getTrackingStatus,
+			viewState,
+			trackingStatus,
 			style,
 			dragInactiveStyle,
 			draggingStyle,
@@ -492,6 +570,37 @@ export const DraxView = (
 		],
 	);
 
+	// The rendered React children of this view.
+	const content = useMemo(
+		() => {
+			let content: ReactNode;
+			if (renderContent) {
+				const renderContentProps = getRenderContentProps();
+				content = renderContent(renderContentProps, context);
+			} else {
+				content = children;
+			}
+			if (isParent) {
+				// This is a Drax parent, so wrap children in subprovider.
+				content = (
+					<DraxSubprovider parent={{ id, nodeHandleRef }}>
+						{content}
+					</DraxSubprovider>
+				);
+			}
+			return content;
+		},
+		[
+			renderContent,
+			getRenderContentProps,
+			context,
+			children,
+			isParent,
+			id,
+			nodeHandleRef,
+		],
+	);
+
 	return (
 		<LongPressGestureHandler
 			maxDist={Number.MAX_SAFE_INTEGER}
@@ -503,20 +612,16 @@ export const DraxView = (
 		>
 			<Animated.View
 				{...props}
+				style={combinedStyle}
 				ref={(ref: AnimatedViewRefType | null) => {
 					const view = ref && ref.getNode();
 					viewRef.current = view;
 					nodeHandleRef.current = view && findNodeHandle(view);
 				}}
-				style={styles}
 				onLayout={onLayout}
 				collapsable={false}
 			>
-				{isParent ? (
-					<DraxSubprovider parent={{ id, nodeHandleRef }}>
-						{children}
-					</DraxSubprovider>
-				) : children}
+				{content}
 			</Animated.View>
 		</LongPressGestureHandler>
 	);

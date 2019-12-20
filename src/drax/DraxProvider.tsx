@@ -640,24 +640,25 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 	};
 
 	const hoverViews: ReactNodeArray = [];
+	const trackingStatus = getTrackingStatus();
 	getHoverItems().forEach(({
 		id,
 		key,
-		renderHoverView,
+		internalRenderHoverView,
 		hoverPosition,
+		dimensions,
 	}) => {
 		const viewState = getViewState(id);
 		if (viewState) {
-			const hoverView = renderHoverView({ viewState });
+			const hoverView = internalRenderHoverView({
+				key,
+				hoverPosition,
+				viewState,
+				trackingStatus,
+				dimensions,
+			});
 			if (hoverView) {
-				hoverViews.push((
-					<Animated.View
-						key={key}
-						style={{ transform: hoverPosition.getTranslateTransform() }}
-					>
-						{hoverView}
-					</Animated.View>
-				));
+				hoverViews.push(hoverView);
 			}
 		}
 	});

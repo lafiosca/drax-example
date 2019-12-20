@@ -78,3 +78,6 @@ export const getRelativePosition = (
 		relativePositionRatio: { x: rx / width, y: ry / height },
 	};
 };
+
+export const extractPosition = ({ x, y }: DraxViewMeasurements) => ({ x, y });
+export const extractDimensions = ({ width, height }: DraxViewMeasurements) => ({ width, height });

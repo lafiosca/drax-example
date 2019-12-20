@@ -436,12 +436,19 @@ export const DraxList = <T extends unknown>(
 					// If dragged item and received item were ours, reorder data.
 					console.log(`moving ${fromPayload.index} -> ${toPayload.index}`);
 					const snapbackTarget = calculateSnapbackTarget(fromPayload, toPayload);
-					const { index: fromIndex } = fromPayload;
-					const { index: toIndex } = toPayload;
-					const newOriginalIndexes = originalIndexes.slice();
-					newOriginalIndexes.splice(toIndex, 0, newOriginalIndexes.splice(fromIndex, 1)[0]);
-					setOriginalIndexes(newOriginalIndexes);
-					onListItemMoved?.(fromIndex, toIndex);
+					const { index: fromIndex, originalIndex: fromOriginalIndex } = fromPayload;
+					const { index: toIndex, originalIndex: toOriginalIndex } = toPayload;
+					if (data) {
+						const newOriginalIndexes = originalIndexes.slice();
+						newOriginalIndexes.splice(toIndex, 0, newOriginalIndexes.splice(fromIndex, 1)[0]);
+						setOriginalIndexes(newOriginalIndexes);
+						onListItemMoved?.({
+							fromIndex,
+							toIndex,
+							fromItem: data[fromOriginalIndex],
+							toItem: data[toOriginalIndex],
+						});
+					}
 					return snapbackTarget;
 				}
 			}

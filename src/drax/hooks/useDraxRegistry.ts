@@ -35,6 +35,7 @@ import {
 	clipMeasurements,
 	isPointInside,
 	getRelativePosition,
+	extractDimensions,
 } from '../math';
 import { defaultSnapbackDelay, defaultSnapbackDuration } from '../params';
 
@@ -127,6 +128,7 @@ const getAbsoluteViewDataFromRegistry = (
 	}
 	return {
 		...viewData,
+		measurements: viewData.measurements!, // It must exist, since absoluteMeasurements is defined.
 		absoluteMeasurements,
 	};
 };
@@ -196,6 +198,7 @@ const findMonitorsAndReceiverInRegistry = (
 				id: targetId,
 				data: {
 					...target,
+					measurements: target.measurements!, // It must exist, since absoluteMeasurements is defined.
 					absoluteMeasurements,
 				},
 				...getRelativePosition(screenPosition, absoluteMeasurements),
@@ -256,28 +259,34 @@ const getHoverItemsFromRegistry = (registry: DraxRegistry) => {
 		if (release) {
 			const { viewId, hoverPosition } = release;
 			const releasedData = getAbsoluteViewDataFromRegistry(registry, viewId);
-			const renderHoverView = releasedData?.protocol.renderHoverView;
-			if (renderHoverView) {
-				hoverItems.push({
-					hoverPosition,
-					renderHoverView,
-					key: releaseId,
-					id: viewId,
-				});
+			if (releasedData) {
+				const { protocol: { internalRenderHoverView }, measurements } = releasedData;
+				if (internalRenderHoverView) {
+					hoverItems.push({
+						hoverPosition,
+						internalRenderHoverView,
+						key: releaseId,
+						id: viewId,
+						dimensions: extractDimensions(measurements),
+					});
+				}
 			}
 		}
 	});
 
 	// Find the currently dragged hover item.
 	const { id: draggedId, data: draggedData } = getTrackingDraggedFromRegistry(registry) ?? {};
-	const renderHoverView = draggedData?.protocol.renderHoverView;
-	if (draggedId && renderHoverView) {
-		hoverItems.push({
-			renderHoverView,
-			key: `dragged-hover-${draggedId}`,
-			id: draggedId,
-			hoverPosition: registry.drag!.hoverPosition,
-		});
+	if (draggedData) {
+		const { protocol: { internalRenderHoverView }, measurements } = draggedData;
+		if (draggedId && internalRenderHoverView) {
+			hoverItems.push({
+				internalRenderHoverView,
+				key: `dragged-hover-${draggedId}`,
+				id: draggedId,
+				hoverPosition: registry.drag!.hoverPosition,
+				dimensions: extractDimensions(measurements),
+			});
+		}
 	}
 
 	return hoverItems;
@@ -427,12 +436,12 @@ const resetDragInRegistry = (
 	let snapping = false;
 	if (snapbackTarget !== DraxSnapbackTargetPreset.None && draggedData) {
 		const {
-			renderHoverView,
+			internalRenderHoverView,
 			animateSnapback = true,
 			snapbackDelay = defaultSnapbackDelay,
 			snapbackDuration = defaultSnapbackDuration,
 		} = draggedData.protocol;
-		if (renderHoverView && animateSnapback) {
+		if (internalRenderHoverView && animateSnapback) {
 			let toValue: Position | undefined;
 
 			if (isPosition(snapbackTarget)) {
@@ -468,6 +477,8 @@ const resetDragInRegistry = (
 							viewStateUpdate: {
 								dragStatus: DraxViewDragStatus.Inactive,
 								hoverPosition: undefined,
+								grabOffset: undefined,
+								grabOffsetRatio: undefined,
 							},
 						}));
 					}
@@ -483,8 +494,6 @@ const resetDragInRegistry = (
 	const viewStateUpdate: Partial<DraxViewState> = {
 		dragScreenPosition: undefined,
 		dragOffset: undefined,
-		grabOffset: undefined,
-		grabOffsetRatio: undefined,
 	};
 
 	if (snapping) {
@@ -492,6 +501,8 @@ const resetDragInRegistry = (
 	} else {
 		viewStateUpdate.dragStatus = DraxViewDragStatus.Inactive;
 		viewStateUpdate.hoverPosition = undefined;
+		viewStateUpdate.grabOffset = undefined;
+		viewStateUpdate.grabOffsetRatio = undefined;
 	}
 
 	stateDispatch(actions.updateViewState({

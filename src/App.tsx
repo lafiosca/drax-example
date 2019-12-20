@@ -9,6 +9,7 @@ import {
 	findNodeHandle,
 	FlatList,
 	Button,
+	Animated,
 } from 'react-native';
 
 import {
@@ -16,6 +17,7 @@ import {
 	DraxView,
 	DraxList,
 	DraxScrollView,
+	DraxViewDragStatus,
 } from './drax';
 
 interface Cargo {
@@ -381,7 +383,7 @@ const App = () => {
 								<Text style={styles.bottomBoxText}>{`${item}`}</Text>
 							</View>
 						)}
-						onListItemMoved={(fromIndex, toIndex) => {
+						onListItemMoved={({ fromIndex, toIndex }) => {
 							const newData = numData.slice();
 							newData.splice(toIndex, 0, newData.splice(fromIndex, 1)[0]);
 							setNumData(newData);
@@ -417,7 +419,7 @@ const App = () => {
 						}}
 						keyExtractor={(item) => item}
 					/> */}
-					<DraxScrollView
+					{/* <DraxScrollView
 						style={{ backgroundColor: '#dddddd', width: '100%', height: 400 }}
 						contentContainerStyle={{ width: 800, height: 800 }}
 						horizontal
@@ -430,11 +432,27 @@ const App = () => {
 						<DraxView
 							style={styles.gridGreen}
 							receivingStyle={styles.gridReceive}
-							hoverStyle={styles.gridHover}
+							draggingStyle={{ opacity: 0 }}
+							dragReleasedStyle={{ opacity: 0.2 }}
+							hoverStyle={styles.gridMiniHover}
+							hoverDragReleasedStyle={styles.gridHoverRelease}
 							receptive
 							draggable
+							renderHoverView={({ viewState, style }) => {
+								const offsetStyle = viewState.grabOffset
+									? {
+										marginLeft: viewState.grabOffset.x - 25,
+										marginTop: viewState.grabOffset.y - 25,
+									}
+									: undefined;
+								return (
+									<Animated.View style={[style, offsetStyle]}>
+										<Text>WOW</Text>
+									</Animated.View>
+								);
+							}}
 						>
-							<Text>test</Text>
+							<Text>Draggable</Text>
 						</DraxView>
 						<DraxView
 							style={styles.gridBlue}
@@ -443,8 +461,16 @@ const App = () => {
 						/>
 						<DraxView
 							style={styles.gridGreen}
-							receivingStyle={styles.gridReceive}
 							hoverStyle={styles.gridHover}
+							receivingStyle={styles.gridReceive}
+							renderView={({ style }) => {
+								console.log(JSON.stringify(style, null, 2));
+								return (
+									<Animated.View style={style}>
+										<Text>Test</Text>
+									</Animated.View>
+								);
+							}}
 							receptive
 							draggable
 						/>
@@ -453,7 +479,68 @@ const App = () => {
 							receivingStyle={styles.gridReceive}
 							receptive
 						/>
-					</DraxScrollView>
+						<DraxView
+							style={styles.gridGreen}
+							draggingStyle={styles.gridHover}
+							receivingStyle={styles.gridReceive}
+							noHover
+							receptive
+							draggable
+						/>
+					</DraxScrollView> */}
+					<View
+						style={{
+							backgroundColor: '#aaaaaa',
+							width: '100%',
+							height: 300,
+							flexDirection: 'row',
+						}}
+					>
+						<DraxView
+							style={styles.gridBlue}
+							receivingStyle={styles.gridReceive}
+							receptive
+						/>
+						<DraxView
+							style={{ width: 100, height: 100, margin: 50 }}
+							receivingStyle={styles.gridReceive}
+							draggingStyle={{ opacity: 0.2 }}
+							dragReleasedStyle={{ opacity: 0.5 }}
+							hoverDragReleasedStyle={styles.gridHoverRelease}
+							receptive
+							draggable
+							renderContent={({ viewState }) => (
+								<View
+									style={styles.gridGreen}
+								>
+									<Text>Draggable</Text>
+								</View>
+							)}
+							renderHoverContent={({ viewState }) => {
+								const offsetStyle = viewState.grabOffset
+									? {
+										marginLeft: viewState.grabOffset.x - 25,
+										marginTop: viewState.grabOffset.y - 25,
+									}
+									: undefined;
+								return (
+									<View style={[styles.gridMiniHover, offsetStyle]}>
+										<Text>WOW</Text>
+									</View>
+								);
+							}}
+						>
+							<Text>Draggable</Text>
+						</DraxView>
+						<DraxView
+							style={styles.gridGreen}
+							draggingStyle={styles.gridHover}
+							receivingStyle={styles.gridReceive}
+							noHover
+							receptive
+							draggable
+						/>
+					</View>
 				</DraxProvider>
 			</SafeAreaView>
 		</>
@@ -471,14 +558,27 @@ const styles = StyleSheet.create({
 		backgroundColor: '#aaaaff',
 	},
 	gridGreen: {
-		width: 100,
-		height: 100,
-		margin: 5,
-		padding: 10,
+		flex: 1,
+		// width: 100,
+		// height: 100,
+		// margin: 50,
+		// padding: 10,
+		backgroundColor: '#aaffaa',
+	},
+	gridMiniHover: {
+		width: 50,
+		height: 50,
+		borderColor: 'blue',
+		borderWidth: 2,
 		backgroundColor: '#aaffaa',
 	},
 	gridHover: {
 		margin: 0,
+		borderColor: 'blue',
+		borderWidth: 2,
+	},
+	gridHoverRelease: {
+		borderWidth: 0,
 	},
 	gridReceive: {
 		borderColor: 'red',
