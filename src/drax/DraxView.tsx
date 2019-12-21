@@ -97,7 +97,6 @@ export const DraxView = (
 		monitoring: monitoringProp,
 		...props
 	}: PropsWithChildren<DraxViewProps>,
-	context: any,
 ): ReactElement => {
 	// Coalesce protocol props into capabilities.
 	const draggable = draggableProp ?? (
@@ -150,12 +149,16 @@ export const DraxView = (
 		updateViewMeasurements,
 		handleGestureEvent,
 		handleGestureStateChange,
+		rootNodeHandleRef,
 		parent: contextParent,
 	} = useDrax();
 
 	// Identify Drax parent view (if any) from context or prop override.
 	const parent = parentProp ?? contextParent;
 	const parentId = parent && parent.id;
+
+	// Identify parent node handle ref.
+	const parentNodeHandleRef = parent ? parent.nodeHandleRef : rootNodeHandleRef;
 
 	// Initialize id.
 	useEffect(
@@ -273,7 +276,7 @@ export const DraxView = (
 						trackingStatus: internalProps.trackingStatus,
 						dimensions: internalProps.dimensions,
 					};
-					content = render(renderProps, context);
+					content = render(renderProps);
 				} else {
 					content = children;
 				}
@@ -296,7 +299,6 @@ export const DraxView = (
 			renderHoverContent,
 			renderContent,
 			getCombinedHoverStyle,
-			context,
 			props,
 			children,
 		],
@@ -440,28 +442,31 @@ export const DraxView = (
 		(measurementHandler?: DraxViewMeasurementHandler) => {
 			const view = viewRef.current;
 			if (view) {
-				const measureCallback = measurementHandler
-					? buildMeasureCallback(measurementHandler)
-					: updateMeasurements;
-				if (parent) {
-					const nodeHandle = parent.nodeHandleRef.current;
-					if (nodeHandle) {
-						view.measureLayout(
-							nodeHandle,
-							measureCallback,
-							() => {
-								console.log('Failed to measure drax view in relation to parent');
-							},
-						);
-					} else {
-						console.log('No parent nodeHandle to measure drax view in relation to');
-					}
+				const nodeHandle = parentNodeHandleRef.current;
+				if (nodeHandle) {
+					const measureCallback = measurementHandler
+						? buildMeasureCallback(measurementHandler)
+						: updateMeasurements;
+					console.log('definitely measuring in reference to something');
+					view.measureLayout(
+						nodeHandle,
+						measureCallback,
+						() => {
+							console.log('Failed to measure Drax view in relation to parent nodeHandle');
+						},
+					);
 				} else {
-					view.measureInWindow(measureCallback);
+					console.log('No parent nodeHandle to measure Drax view in relation to');
 				}
+			} else {
+				console.log('No view to measure');
 			}
 		},
-		[parent, buildMeasureCallback, updateMeasurements],
+		[
+			parentNodeHandleRef,
+			buildMeasureCallback,
+			updateMeasurements,
+		],
 	);
 
 	// Measure and send our measurements to Drax context and onMeasure, used when this view finishes layout.
@@ -581,7 +586,7 @@ export const DraxView = (
 			let content: ReactNode;
 			if (renderContent) {
 				const renderContentProps = getRenderContentProps();
-				content = renderContent(renderContentProps, context);
+				content = renderContent(renderContentProps);
 			} else {
 				content = children;
 			}
@@ -598,12 +603,20 @@ export const DraxView = (
 		[
 			renderContent,
 			getRenderContentProps,
-			context,
 			children,
 			isParent,
 			id,
 			nodeHandleRef,
 		],
+	);
+
+	const setViewRefs = useCallback(
+		(ref: AnimatedViewRefType | null) => {
+			const view = ref && ref.getNode();
+			viewRef.current = view;
+			nodeHandleRef.current = view && findNodeHandle(view);
+		},
+		[],
 	);
 
 	return (
@@ -618,11 +631,7 @@ export const DraxView = (
 			<Animated.View
 				{...props}
 				style={combinedStyle}
-				ref={(ref: AnimatedViewRefType | null) => {
-					const view = ref && ref.getNode();
-					viewRef.current = view;
-					nodeHandleRef.current = view && findNodeHandle(view);
-				}}
+				ref={setViewRefs}
 				onLayout={onLayout}
 				collapsable={false}
 			>

@@ -396,7 +396,7 @@ const App = () => {
 						}}
 						keyExtractor={(item) => `${item}`}
 					/> */}
-					<DraxList
+					{/* <DraxList
 						style={{ flex: 1 }}
 						data={alphaData}
 						itemStyles={{
@@ -426,7 +426,7 @@ const App = () => {
 							setAlphaData(newData);
 						}}
 						keyExtractor={(item) => item}
-					/>
+					/> */}
 					{/* <DraxScrollView
 						style={{ backgroundColor: '#dddddd', width: '100%', height: 400 }}
 						contentContainerStyle={{ width: 800, height: 800 }}
@@ -496,7 +496,7 @@ const App = () => {
 							draggable
 						/>
 					</DraxScrollView> */}
-					{/* <View
+					<View
 						style={{
 							backgroundColor: '#aaaaaa',
 							width: '100%',
@@ -546,7 +546,7 @@ const App = () => {
 							receptive
 							draggable
 						/>
-					</View> */}
+					</View>
 				</DraxProvider>
 			</SafeAreaView>
 		</>

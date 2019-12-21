@@ -483,6 +483,7 @@ export const DraxList = <T extends unknown>(
 			id,
 			data,
 			stopScroll,
+			reorderable,
 			resetShifts,
 			calculateSnapbackTarget,
 			originalIndexes,

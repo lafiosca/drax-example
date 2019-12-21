@@ -2,8 +2,9 @@ import React, {
 	FunctionComponent,
 	useCallback,
 	ReactNodeArray,
+	useRef,
 } from 'react';
-import { View, StyleSheet, Animated } from 'react-native';
+import { View, StyleSheet, findNodeHandle } from 'react-native';
 import { State } from 'react-native-gesture-handler';
 
 import { useDraxState, useDraxRegistry } from './hooks';
@@ -45,6 +46,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		unregisterView,
 	} = useDraxRegistry(dispatch);
 
+	const rootNodeHandleRef = useRef<number | null>(null);
 
 	const handleGestureStateChange = useCallback(
 		(id: string, event: DraxGestureStateChangeEvent) => {
@@ -637,6 +639,7 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		updateViewMeasurements,
 		handleGestureStateChange,
 		handleGestureEvent,
+		rootNodeHandleRef,
 	};
 
 	const hoverViews: ReactNodeArray = [];
@@ -663,14 +666,26 @@ export const DraxProvider: FunctionComponent<DraxProviderProps> = ({ debug = fal
 		}
 	});
 
+	const setRootNodeHandleRef = useCallback(
+		(ref: View | null) => {
+			rootNodeHandleRef.current = ref && findNodeHandle(ref);
+		},
+		[],
+	);
+
 	return (
 		<DraxContext.Provider value={contextValue}>
-			{children}
 			<View
 				style={StyleSheet.absoluteFill}
-				pointerEvents="none"
+				ref={setRootNodeHandleRef}
 			>
-				{hoverViews}
+				{children}
+				<View
+					style={StyleSheet.absoluteFill}
+					pointerEvents="none"
+				>
+					{hoverViews}
+				</View>
 			</View>
 		</DraxContext.Provider>
 	);

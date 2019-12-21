@@ -534,6 +534,9 @@ export interface DraxContextValue {
 	/** Handle gesture event for a registered Drax view */
 	handleGestureEvent: (id: string, event: DraxGestureEvent) => void;
 
+	/** Root node handle ref for the Drax provider, for measuring non-parented views in relation to */
+	rootNodeHandleRef: RefObject<number | null>;
+
 	/** Drax parent view for all views under this context, when nesting */
 	parent?: DraxParentView;
 }
